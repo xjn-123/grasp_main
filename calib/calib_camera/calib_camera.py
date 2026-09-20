@@ -37,8 +37,8 @@ def calib_camera(
                 continue
 
             for i in range(4):
-                pts3d.append(np.array(tag3d))
-                pts2d.append(np.array(tag2d))
+                pts3d.append(np.array(tag3d.corners[i]))
+                pts2d.append(np.array(tag2d.conners[i]))
         if len(pts3d)<4:
             logger.warning("valid 3D-2D point pairs found")
             continue
