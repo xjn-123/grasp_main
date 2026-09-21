@@ -226,5 +226,6 @@ if __name__ == "__main__":
     # end if
 
     logging.info(f"Result saved to: {GREEN}{save_path}.{RESET}")
+    
 
 # end if __name__ == '__main__':
