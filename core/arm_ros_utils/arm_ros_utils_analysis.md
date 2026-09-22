@@ -583,7 +583,9 @@ msg.pose.orientation.z = float(q[3])
 ### 6.3 T_base_cam = T_base_end @ T_end_cam 的链式含义
 
 相机装在机械臂末端上，所以"相机相对基座" = "末端相对基座" × "相机相对末端"：
+
 $$T_{base\_cam} = T_{base\_end} \cdot T_{end\_cam}$$
+
 下标链：`base→end→cam`，中间 `end` 消掉 → `base←cam`。✅（第 1.2 节规则）
 
 含义：机械臂一动，末端位姿 `T_base_end` 变，相机就跟着变（因为 `T_end_cam` 固定，手眼标定得来）。所以只要知道末端位姿，就能算出相机在基座系在哪，再广播 `base_link → camera_link` 的 TF，RViz 就能把相机数据（点云等）正确摆到基座系下。
@@ -591,6 +593,7 @@ $$T_{base\_cam} = T_{base\_end} \cdot T_{end\_cam}$$
 ### 6.4 数值演练：给一个位姿矩阵手算发布的四元数
 
 设 `T_base_end`：
+
 $$
 T = \begin{bmatrix}
 1 & 0 & 0 & 0.1 \\
@@ -599,6 +602,7 @@ T = \begin{bmatrix}
 0 & 0 & 0 & 1
 \end{bmatrix}
 $$
+
 （纯平移，无旋转）
 
 用 `pose_to_msg`：

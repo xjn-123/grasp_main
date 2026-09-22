@@ -1,3 +1,6 @@
-robot_grasp.zip
+*robot_grasp.zip
 .venv/
 robot_grasp/
+.vscode/
+carm_grasp-main/
+.workbuddy/

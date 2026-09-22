@@ -701,19 +701,19 @@ T_w_b0 * T_b0_b1 = T_w_b1      (C)
 
 已知 `T_a_b, T_a0_a1`，求 `T_b0_b1` 使得 (C) 成立、且两端一致。由 (A) 在 0 时刻：`T_w_a0 * T_a_b = T_w_b0`。由 (B)：`T_w_a1 = T_w_a0 * T_a0_a1`。又由 (A) 在 1 时刻：`T_w_a1 * T_a_b = T_w_b1`，代入：
 
-$$T_w_b1 = T_w_a1 * T_a_b = (T_w_a0 * T_a0_a1) * T_a_b$$
+$$T_{w\_b1} = T_{w\_a1} \cdot T_{a\_b} = (T_{w\_a0} \cdot T_{a0\_a1}) \cdot T_{a\_b}$$
 
 而由 (C) `T_w_b1 = T_w_b0 * T_b0_b1`，且 `T_w_b0 = T_w_a0 * T_a_b`，故：
 
-$$T_w_a0 * T_a_b * T_b0_b1 = T_w_a0 * T_a0_a1 * T_a_b$$
+$$T_{w\_a0} \cdot T_{a\_b} \cdot T_{b0\_b1} = T_{w\_a0} \cdot T_{a0\_a1} \cdot T_{a\_b}$$
 
 左边同时左乘 `inv(T_w_a0)`（即 `T_w_a0⁻¹`）消掉 `T_w_a0`：
 
-$$T_a_b * T_b0_b1 = T_a0_a1 * T_a_b$$
+$$T_{a\_b} \cdot T_{b0\_b1} = T_{a0\_a1} \cdot T_{a\_b}$$
 
 再左乘 `inv(T_a_b)`：
 
-$$T_b0_b1 = inv(T_a_b) * T_a0_a1 * T_a_b$$
+$$T_{b0\_b1} = (T_{a\_b})^{-1} \cdot T_{a0\_a1} \cdot T_{a\_b}$$
 
 对应代码第 253 行 `inv_tf(T_a_b) @ T_a0_a1 @ T_a_b`。完全吻合。这就是"相似变换"——把 a 系的增量，用固定的 a→b 关系"共轭"到 b 系。
 
@@ -753,7 +753,11 @@ $$T_{a\_b1} = T_{a\_b0} * T_{b_c} * T_{c0\_d} * inv(T_{b_c} * T_{c1\_d})$$
 
 ### 6.5 时间戳 ns → 秒 → 字符串的换算
 
-$$秒 = \frac{纳秒}{10^9} = \frac{ns}{1\_000\_000\_000}$$
+纳秒值除以 $10^9$ 就得到秒：
+
+$$t_{\mathrm{sec}} = \frac{t_{\mathrm{ns}}}{10^{9}}$$
+
+（代码里的常数写作 `1_000_000_000`）
 
 第 290 行 `datetime.fromtimestamp(ns / 1e9)` 得到"本地时间"的 datetime。再 `strftime("%H:%M:%S.%f")` 出 `'HH:MM:SS.abcdef'`（微秒 6 位），`[:-3]` 切到毫秒 3 位，得 `'HH:MM:SS.sss'`。
 
