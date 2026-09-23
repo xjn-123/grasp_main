@@ -14,6 +14,7 @@ AprilTag 3 / pyapriltags 一个都检不出来。而且模板的物理尺寸是�
 
 import os
 import sys
+
 import cv2
 import numpy as np
 
@@ -32,7 +33,6 @@ else:
     raise ImportError("找不到 apriltag_helper.py, 请确认它和本脚本的相对位置")
 
 import apriltag_helper as ah
-
 
 # ============================================================ 可改参数 ============================================================
 TAG_FAMILY = "tag36h11"     # 可选 tag16h5 / tag25h7 / tag25h9 / tag36h11

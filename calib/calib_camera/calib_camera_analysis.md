@@ -81,8 +81,10 @@
 
 写成公式（这就是传说中的**针孔相机模型**）：
 
-$$u = f_x \cdot x_{distorted} + c_x$$
-$$v = f_y \cdot y_{distorted} + c_y$$
+$$\begin{aligned}
+u &= f_x \cdot x_{distorted} + c_x \\
+v &= f_y \cdot y_{distorted} + c_y
+\end{aligned}$$
 
 其中 $x = X_c/Z_c,\ y = Y_c/Z_c$。
 
@@ -122,8 +124,12 @@ OpenCV 用的畸变公式（施加在归一化坐标 $x, y$ 上）：
 
 $$r^2 = x^2 + y^2$$
 
-$$x_{dist} = x(1 + k_1 r^2 + k_2 r^4 + k_3 r^6) + 2p_1xy + p_2(r^2 + 2x^2)$$
-$$y_{dist} = y(1 + k_1 r^2 + k_2 r^4 + k_3 r^6) + p_1(r^2 + 2y^2) + 2p_2xy$$
+$$
+\begin{aligned}
+x_{dist} &= x(1 + k_1 r^2 + k_2 r^4 + k_3 r^6) + 2p_1xy + p_2(r^2 + 2x^2) \\
+y_{dist} &= y(1 + k_1 r^2 + k_2 r^4 + k_3 r^6) + p_1(r^2 + 2y^2) + 2p_2xy
+\end{aligned}
+$$
 
 不用背，只要知道：**这 5 个数字描述了"照片被扭曲了多少"**。知道了它们，就能把扭曲的照片"掰直"（去畸变 `cv2.undistort`）。
 
@@ -144,7 +150,11 @@ $$y_{dist} = y(1 + k_1 r^2 + k_2 r^4 + k_3 r^6) + p_1(r^2 + 2y^2) + 2p_2xy$$
 
 这个"差距"就叫**重投影误差（reprojection error）**，脚本里打印的 `RMS error` 就是它的均方根，单位是**像素**：
 
-$$RMS = \sqrt{\frac{1}{N}\sum_{i=1}^{N}\left[(u_i^{计算} - u_i^{检测})^2 + (v_i^{计算} - v_i^{检测})^2\right]}$$
+$$
+RMS = \sqrt{\frac{1}{N}\sum_{i=1}^{N}\left[(\hat{u}_i - u_i)^2 + (\hat{v}_i - v_i)^2\right]}
+$$
+
+其中 $(\hat{u}_i, \hat{v}_i)$ 是用标定参数**正投影算出来**的第 i 个点，$(u_i, v_i)$ 是**实际检测到**的像素点。
 
 **怎么判断标定好坏（工程经验值）：**
 

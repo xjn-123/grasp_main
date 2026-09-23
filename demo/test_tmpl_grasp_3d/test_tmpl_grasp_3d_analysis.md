@@ -143,6 +143,8 @@ $$
 \text{delta\_T\_end} = (\text{ready\_T\_base\_end})^{-1} \cdot \text{grasp\_T\_base\_end}
 $$
 
+
+
 也就是第 274 行的 `inv_tf(ready_T_base_end) @ grasp_T_base_end`。
 
 **关键前提**：这个相对量只有在"当前机械臂已经站在 ready 位姿附近"时加上去，才会到达正确的 grasp 位姿。所以程序先用 `compute_ready_pose`（见 3.3 / 6.1）把机械臂精确推到 ready，再 `cur_T_base_end @ delta_T_end`（第 465 行）算出抓取位姿。如果 ready 没对齐好就加 delta，grasp 也跟着偏（这是第 7 节要重点讲的坑）。

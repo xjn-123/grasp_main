@@ -78,7 +78,7 @@
 
 机器人里到处都是坐标系（基座 base、末端 end、相机 cam、物体 obj、夹爪 gripper……）。怎么表示一个坐标系相对另一个的位姿？用变换矩阵，而且本工程**统一用下标记法：**
 
-$$T_{a\_b} = \text{从 b 坐标系变换到 a 坐标系的矩阵}$$
+> **$T_{a\_b}$ = 从 b 坐标系变换到 a 坐标系的矩阵**
 
 读法："把 b 下的坐标，变成 a 下的坐标"。下标里最后一个是"起点/源"，下划线前面是"终点/目标"。
 
@@ -88,7 +88,11 @@ $$T_{a\_b} = \text{从 b 坐标系变换到 a 坐标系的矩阵}$$
 - `T_end_cam`：在 `CollisionDetector` 里注释写的是"从相机 → 末端"（第 155 行），**但后面实际传进去的是反方向**——这是本文件最大的命名坑，见第 7 节第 7 条。
 
 > 牢记一条链式规则：矩阵相乘时**相邻下标会消掉**。例如
-> $$T_{base\_cam} = T_{base\_end} \cdot T_{end\_cam}$$
+>
+> $$
+> T_{base\_cam} = T_{base\_end} \cdot T_{end\_cam}
+> $$
+>
 > 中间的 `end` 消掉，得到 `base ← cam`。想不起来就念一遍"base→end→cam"。
 
 ### 1.3 旋转矩阵的第 N 列 = 第 N 个坐标轴方向
@@ -1013,11 +1017,15 @@ for i, x in enumerate(["a","b"]):   # i=0,x="a" 然后 i=1,x="b"
 记 `C = self.T_end_cam`（相机→末端，即 `T_end_cam`）。
 - 参考视角相机在基座系位姿：`T_base_cam_ref = ref_T_base_end @ C`。
 - 目标视角相机在基座系位姿：`T_base_cam_target = target_T_base_end @ C`。
-- 要的是"从 target 相机看，ref 相机在哪"：`T_cam_target_cam_ref`（即代码里的 `cam_T_ref_target`）。
+- 要的是"从 target 相机看，ref 相机在哪"：`T_cam_target_cam_ref`（即代码里的 `cam_T_ref_target`）：
+
   $$
-  T_{cam\_target\_cam\_ref} = (T_{base\_cam\_ref})^{-1} \cdot T_{base\_cam\_target}
-  = \text{inv\_tf}(ref\_T_{base\_end} @ C) @ (target\_T_{base\_end} @ C)
+  \begin{aligned}
+  T_{cam\_target\_cam\_ref} &= (T_{base\_cam\_ref})^{-1} \cdot T_{base\_cam\_target} \\
+  &= \text{inv\_tf}(ref\_T_{base\_end} @ C) @ (target\_T_{base\_end} @ C)
+  \end{aligned}
   $$
+
   下标链：`base→cam_ref` 的逆 = `cam_ref→base`，再 `@` `base→cam_target` = `cam_ref→cam_target`。✅ 与代码一致。
 
 **注意**：这个量的语义是"从 target 相机到 ref 相机"，但传给 `get_rects_3d` 当 `T_target_cam`（参数注释写"相机→目标"）。名字反了，但数学对——因为 `get_rects_3d` 需要"相机→目标(这里目标是 ref 相机)"来把爪点变到 ref 相机系。见第 7 节第 7 条。
@@ -1025,7 +1033,9 @@ for i, x in enumerate(["a","b"]):   # i=0,x="a" 然后 i=1,x="b"
 **（2）矩形投影到图像（第 248 行）**
 
 针孔相机模型：相机系下点 `(x,y,z)`（z 是深度，前方为正），投到像素：
+
 $$u = x\cdot f_x / z + c_x,\quad v = y\cdot f_y / z + c_y$$
+
 代码用 `int()` 截断（⚠️ 半像素误差）。
 
 **（3）逐像素求深度 `z = -D/(A·nx + B·ny + C)`（第 264 行）**
@@ -1033,9 +1043,15 @@ $$u = x\cdot f_x / z + c_x,\quad v = y\cdot f_y / z + c_y$$
 平面方程：`A x + B y + C z + D = 0`，法向量 `n=(A,B,C)`。
 像素 `(u,v)` 对应的视线方向（相机系）为 `(nx, ny, 1)`，其中 `nx=(u-cx)/fx, ny=(v-cy)/fy`（已去掉内参，相当于 z=1 平面上的点）。
 视线上任一点可写为 `k·(nx, ny, 1)`（k 为缩放）。代入平面方程：
-$$A(k\,nx) + B(k\,ny) + C(k\cdot1) + D = 0$$
-$$k\,(A\,nx + B\,ny + C) = -D$$
-$$k = \frac{-D}{A\,nx + B\,ny + C}$$
+
+$$
+\begin{aligned}
+A(k\,nx) + B(k\,ny) + C(k\cdot1) + D &= 0 \\[2pt]
+k\,(A\,nx + B\,ny + C) &= -D \\[2pt]
+k &= \frac{-D}{A\,nx + B\,ny + C}
+\end{aligned}
+$$
+
 而这个 k 正是该视线与平面交点的 **z（深度）**。所以 `z = -D/(A*nx + B*ny + C)`。✅
 
 **（4）反直觉的判定：`d_proj > d_real + th` = 撞（第 321 行）**

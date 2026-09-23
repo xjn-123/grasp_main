@@ -11,8 +11,8 @@ import numpy as np
 from numpy.random import f
 
 #导入本地工程模块
-code_dir = os.path.dirname(os.path.realpath(__file__))
-root_dir = os.path.normpath(f"{code_dir}/../../")
+core_dir = os.path.dirname(os.path.realpath(__file__))
+root_dir = os.path.normpath(f"{core_dir}/../../")
 sys.path.append(root_dir)
 
 from core.board_utils import apriltag_helper
