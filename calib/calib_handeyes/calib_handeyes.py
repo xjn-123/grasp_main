@@ -14,9 +14,9 @@ core_dir = os.path.dirname(os.path.realpath(__file__))
 root_dir = os.path.normpath(f"{core_dir}/../../")
 sys.path.append(root_dir)
 
+import core.common_utils.utils as utils
 from core.board_utils import apriltag_helper
 from core.common_utils.utils import Common_data
-import core.common_utils.utils as utils
 
 logger = logging.getLogger(__name__)
 
@@ -156,8 +156,9 @@ def main():
 
     parser.add_argument("--cam_param_path", type=str, required=True, help="相机参数文件路径, json格式")
     parser.add_argument("--board_info", type=str, required=True, help="标定板信息 [tag_size, space_size, tag_rows, tag_cols]")
-    parser.add_argument("--image_dir", type=str, required=True, help="图像目录")
+    parser.add_argument("--image_dir", type=str, required=True, help="标定板图像目录")
     parser.add_argument("--arm_pose_path",type=str,default="/home/i4/桌面/test_location/calib/collect_image_handeye/arm_pose.json",help="机械臂末端位姿文件的路径",)
+    parser.add_argument("--eye_in_hand",type=bool,default=True,help="是否为手眼标定( True )或固定相机标定( False )")
 
     args=parser.parse_args()
 
@@ -165,6 +166,7 @@ def main():
     arm_pose_path=args.arm_pose_path 
     cam_param_path=args.cam_param_path
     board_info=json.loads(args.board_info)
+    eye_in_hand=args.eye_in_hand
 
     print(f"\n图像目录={image_dir}\n机械臂位姿文件={arm_pose_path}\n相机参数文件={cam_param_path}\n标定板信息={board_info}\n")
 
@@ -174,15 +176,89 @@ def main():
         print(f"{Common_data.RED}相机参数文件错误！{Common_data.RESET}")
         sys.exit(1)
 
+    K=np.array([[intrinsic[0],0,intrinsic[2]],[0,intrinsic[1],intrinsic[3]],[0,0,1]]) #创建相机内参矩阵
+    D=np.array(distortion)                                                            #创建相机畸变参数向量
+
     #加载机械臂末端位姿文件
     with open(arm_pose_path, 'r') as f:
-        arm_pose = json.load(f)
-        if len(arm_pose) <1:
+        arm_pose_dict = json.load(f)
+        if len(arm_pose_dict) <1:
             logger.error(f"{Common_data.RED}机械臂末端位姿文件为空，请检查文件内容{Common_data.RESET}")
             sys.exit(1)
     
     #创建标定板
-    tag3dlist=apriltag_helper.create_board_3d_points(board_info[0], board_info[1], board_info[2], board_info[3])
+    tag3d_list=apriltag_helper.create_board_3d_points(board_info[0], board_info[1], board_info[2], board_info[3])
+
+    #创建apriltag检测器
+    detector=apriltag_helper.Detector(tag_family="tag36h11")
+
+    #检测图像中的tag
+    cam_pose_dict={}  #存储每张图像对应的标定板位姿  
+    arm_pose_dict={}  #存储每张图像对应的机械臂末端位姿
+
+    image_path_list=glob.glob(f"{image_dir}/*.png")
+    image_path_list.sort()
+
+    if len(image_path_list)<1:
+        logger.warning(f"目录：{image_dir}不包含任何图片")
+        sys.exit(1)
+    
+    for image_path in image_path_list:
+        image_name=os.path.basename(image_path)
+        image_id=os.path.splitext(image_name)[0] 
+
+        if f"{image_id}" not in arm_pose_dict:
+            logger.warning(f"采集序号 {image_id} 在机械臂末端位姿文件中不存在, 将跳过该序号")
+            continue 
+
+        arm_pose=arm_pose_dict[f"{image_id}"]
+
+        img=cv2.imread(image_path,cv2.IMREAD_GRAYSCALE)
+        if img is None:
+            logger.warning(f"无法读取图片{image_path}")
+            continue
+        tag2d_list=detector.detect(img,-1)
+
+        cam_pose=apriltag_helper.locate_calib_board(tag3d_list, tag2d_list, K, D)
+
+        if cam_pose is None:
+            logger.warning(f"{Common_data.YELLOW}无法在{image_name}中定位标定板，跳过.{Common_data.RESET}")
+            continue
+
+
+        """机械臂位姿需要转换为4x4的变换矩阵"""
+        arm_pose_dict[f"{image_id}"]=np.array(arm_pose)
+        cam_pose_dict[f"{image_id}"]=cam_pose
+
+        #执行手眼标定
+        result_T=calib_handeye(arm_pose_dict, cam_pose_dict,eye_in_hand)
+
+        #保存结果
+        save_path=os.path.join(os.path.dirname(cam_param_path),"calib_handeye.json")
+        result={}
+
+        if eye_in_hand:
+            result["T_end_cam"]=utils.matrix_to_array(result_T)
+        else:
+            result["T_base_cam"]=utils.matrix_to_array(result_T)
+
+        with open(save_path, 'w') as f:
+            json.dump(result, f,indent=4)
+        logger.info(f"结果保存到{save_path}") 
+
+if __name__=="__main__":
+    main()
+
+
+
+
+
+
+
+
+
+
+
     
 
 
