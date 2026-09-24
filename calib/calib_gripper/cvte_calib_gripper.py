@@ -146,7 +146,7 @@ def compute_corners3d(
     # 提取掩码区域的点云f
     pc = open3d.geometry.PointCloud.create_from_depth_image(
         open3d.geometry.Image(masked_depth),
-        open3d.camera.PinholeCameraIntrinsic(
+        open3d.camera.PinholeCameraIntrinsic( 
             gray_img.shape[1],
             gray_img.shape[0],
             intrinsic[0],

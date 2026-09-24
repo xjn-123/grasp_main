@@ -219,7 +219,7 @@ def main():
             continue
         tag2d_list=detector.detect(img,-1)
 
-        cam_pose=apriltag_helper.locate_calib_board(tag3d_list, tag2d_list, K, D)
+        cam_pose=apriltag_helper.locate_calib_board(tag3d_list, tag2d_list, K, D) #检测计算T_cam_board
 
         if cam_pose is None:
             logger.warning(f"{Common_data.YELLOW}无法在{image_name}中定位标定板，跳过.{Common_data.RESET}")
