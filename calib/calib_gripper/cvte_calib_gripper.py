@@ -164,7 +164,7 @@ def compute_corners3d(
         distance_threshold=0.002, ransac_n=6, num_iterations=1000
     )
     logging.info(
-        f"plane equation: {plane}, inliers count: {len(inliers)}, inliers ratio: {len(inliers) / len(pc.points)}"
+        f"拟合的平面方程系数: {plane}\n 内点数: {len(inliers)}\n 内点比例: {len(inliers) / len(pc.points)}"
     )
 
     # 计算角点的空间坐标( 根据平面方程计算 )

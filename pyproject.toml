@@ -8,7 +8,9 @@ authors = [
 ]
 requires-python = ">=3.11,<3.12"
 dependencies = [
+    "mmengine>=0.10.7",
     "numpy>=2.4.6",
+    "open3d>=0.20.0",
     "opencv-python<5.0",
     "pyapriltags>=3.4.3.1",
     "transforms3d>=0.4.2",
