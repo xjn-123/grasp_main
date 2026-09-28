@@ -1,5 +1,5 @@
 ''' calib_gripper.py
-    用于标定夹爪，需满足针孔相机模型和apriltag标定条件，目前仅兼容二指夹爪
+    用于标定夹爪,需满足针孔相机模型和apriltag标定条件,目前仅兼容二指夹爪
 '''
 
 import os  # noqa: I001
