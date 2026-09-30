@@ -8,6 +8,7 @@ authors = [
 ]
 requires-python = ">=3.11,<3.12"
 dependencies = [
+    "carm>=0.1.20260917",
     "mmengine>=0.10.7",
     "numpy>=2.4.6",
     "open3d>=0.20.0",

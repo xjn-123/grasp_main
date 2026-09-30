@@ -48,6 +48,19 @@ wheels = [
 ]
 
 [[package]]
+name = "carm"
+version = "0.1.20260917"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "websocket-client" },
+    { name = "zeroconf" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/b7/24/f78fe401918454f58f876a894167ed51695cb47c58faf4a42db8b0c9c348/carm-0.1.20260917.tar.gz", hash = "sha256:bf14507e4f93038502d42840180efaca5e78f6b6e2737e3e5bad3c0f3f31a95d", size = 73094, upload-time = "2026-09-17T09:32:01.902Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/24/72/166a7ee6e7814600fff5c8cd17ff6705458c8411aeef71e62a37a61f1e8d/carm-0.1.20260917-py3-none-any.whl", hash = "sha256:c768349f8da51c9ef19d4ee2a9ba68e7f82559d399422be1ad8122b0583945bf", size = 54598, upload-time = "2026-09-17T09:31:59.652Z" },
+]
+
+[[package]]
 name = "certifi"
 version = "2026.7.22"
 source = { registry = "https://pypi.org/simple" }
@@ -249,6 +262,7 @@ name = "grasp"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "carm" },
     { name = "mmengine" },
     { name = "numpy" },
     { name = "open3d" },
@@ -259,6 +273,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "carm", specifier = ">=0.1.20260917" },
     { name = "mmengine", specifier = ">=0.10.7" },
     { name = "numpy", specifier = ">=2.4.6" },
     { name = "open3d", specifier = ">=0.20.0" },
@@ -274,6 +289,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/f5/08/8eea9d4b8302028f3abb2c0813953f7aec26d33b7a8960ed760e65ff29fa/idna-3.20.tar.gz", hash = "sha256:a7db850025b95ded1eae8a46181a1a6c56c92c96f0e2b005d9ff8dc0210cab44", size = 216463, upload-time = "2026-09-17T14:11:04.752Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/58/a2/bb081bab032533a855d44de1d56f8e8426114ff1ba5d1f07a438a0a654f8/idna-3.20-py3-none-any.whl", hash = "sha256:ab7ae7122974553370f0bdb919e1a960b2cd1bc1ef0276416d896db81c14582c", size = 69583, upload-time = "2026-09-17T14:11:03.168Z" },
+]
+
+[[package]]
+name = "ifaddr"
+version = "0.2.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/e8/ac/fb4c578f4a3256561548cd825646680edcadb9440f3f68add95ade1eb791/ifaddr-0.2.0.tar.gz", hash = "sha256:cc0cbfcaabf765d44595825fb96a99bb12c79716b73b44330ea38ee2b0c4aed4", size = 10485, upload-time = "2022-06-15T21:40:27.561Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/9c/1f/19ebc343cc71a7ffa78f17018535adc5cbdd87afb31d7c34874680148b32/ifaddr-0.2.0-py3-none-any.whl", hash = "sha256:085e0305cfe6f16ab12d72e2024030f5d52674afad6911bb1eee207177b8a748", size = 12314, upload-time = "2022-06-15T21:40:25.756Z" },
 ]
 
 [[package]]
@@ -1103,6 +1127,15 @@ wheels = [
 ]
 
 [[package]]
+name = "websocket-client"
+version = "1.9.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/d8/cb/a5abcc2891249f393827c650c6296660ce40374ac22d99ab9aea41f9d2a2/websocket_client-1.9.2.tar.gz", hash = "sha256:0fcb57545848be86992e128218fd96dd87a6769ffdb1a968dff79632b85604d0", size = 84110, upload-time = "2026-08-31T14:08:40.964Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/d5/d2/cc4dc1271e464942db7ee278baae2daa99ee77cb2af744025c04da585a3e/websocket_client-1.9.2-py3-none-any.whl", hash = "sha256:e1a673830a9c7bfa47b1cd3d5e4178f4c9651d80a4eab02c9c23a1c3ec6250ce", size = 95786, upload-time = "2026-08-31T14:08:39.899Z" },
+]
+
+[[package]]
 name = "werkzeug"
 version = "3.1.8"
 source = { registry = "https://pypi.org/simple" }
@@ -1133,6 +1166,26 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/23/97/b6f296d1e9cc1ec25c7604178b48532fa5901f721bcf1b8d8148b13e5588/yapf-0.43.0.tar.gz", hash = "sha256:00d3aa24bfedff9420b2e0d5d9f5ab6d9d4268e72afbf59bb3fa542781d5218e", size = 254907, upload-time = "2024-11-14T00:11:41.584Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/37/81/6acd6601f61e31cfb8729d3da6d5df966f80f374b78eff83760714487338/yapf-0.43.0-py3-none-any.whl", hash = "sha256:224faffbc39c428cb095818cf6ef5511fdab6f7430a10783fdfb292ccf2852ca", size = 256158, upload-time = "2024-11-14T00:11:39.37Z" },
+]
+
+[[package]]
+name = "zeroconf"
+version = "0.151.5"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "ifaddr" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/93/20/69744d9de9d375dae2639dda9add7dae85d52d690b68c61b23b8a6468434/zeroconf-0.151.5.tar.gz", hash = "sha256:28c2ec9d772007eedf11b41a9c9fd3d5c684c17b00721ff8f1ee31b20ad286a1", size = 223583, upload-time = "2026-09-28T14:42:06.073Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/1d/fd/2cee4d8624d78170139839e3b17b4b743ebf431cb99434d03b8a3b0ba03d/zeroconf-0.151.5-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:d702be8e8b456470af59fb268b4756c96b4754c7c4ad8c38035c7f0336ac35c5", size = 1195434, upload-time = "2026-09-28T14:58:05.854Z" },
+    { url = "https://files.pythonhosted.org/packages/bb/84/2454706506a6fd7bd09b203765a67cf1116161577ac552fc822977130c17/zeroconf-0.151.5-cp311-cp311-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:d81e8e2c70cc590573069fad9036d1ded7f135c92ada79c89fe547978acf2f90", size = 1404276, upload-time = "2026-09-28T14:58:07.286Z" },
+    { url = "https://files.pythonhosted.org/packages/2b/77/6e321decd68703cfde0b65434ede8002e1964b2e44e76395a604e1fd496d/zeroconf-0.151.5-cp311-cp311-manylinux2014_armv7l.manylinux_2_17_armv7l.manylinux_2_31_armv7l.whl", hash = "sha256:11cc483a2fb4a08c8f3456d574c4b64dd8413028fd0bafc8eae77987a63f04c7", size = 1328696, upload-time = "2026-09-28T14:58:08.874Z" },
+    { url = "https://files.pythonhosted.org/packages/26/2b/4e7b6240ed9ac8a67417dd64113737c6ba4ac62b54795ea0fefcad900075/zeroconf-0.151.5-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:9bfb0efd3d9259e3a5e9b2373f895900ea3951ca843be84772b6726b8f16dd60", size = 1445178, upload-time = "2026-09-28T14:58:10.298Z" },
+    { url = "https://files.pythonhosted.org/packages/f6/89/7b91c425622b58623e5f7eb431654cba163db816d8b148908348711c2675/zeroconf-0.151.5-cp311-cp311-musllinux_1_2_aarch64.whl", hash = "sha256:b6715218b4348b306ec11799cbc6e365fb078b60e0e5a384c5a6d5f48a495025", size = 1420984, upload-time = "2026-09-28T14:58:11.721Z" },
+    { url = "https://files.pythonhosted.org/packages/25/41/fd65eaf5d55f53d2e270b27d33b2476fb45f9a5ab3ff7be3892536331dc0/zeroconf-0.151.5-cp311-cp311-musllinux_1_2_armv7l.whl", hash = "sha256:35b908297f4a36b5a934aa25dbcf5078bd26fedd7203bf92506041e0bfe32616", size = 1333541, upload-time = "2026-09-28T14:58:13.148Z" },
+    { url = "https://files.pythonhosted.org/packages/3a/1c/47fe137c835910b63db57c41e17256b6907b8d8896803a85c28205f181ff/zeroconf-0.151.5-cp311-cp311-musllinux_1_2_x86_64.whl", hash = "sha256:92e9a1494c5938ca4e426150a3ad575e9b2ca14cc8af9372124d8800d791b1b8", size = 1460105, upload-time = "2026-09-28T14:58:14.827Z" },
+    { url = "https://files.pythonhosted.org/packages/b3/a7/99e68031c736dd26576c37b3f3408b3bb315454f81273185bd02c908c793/zeroconf-0.151.5-cp311-cp311-win32.whl", hash = "sha256:c967096138b7a38ef51b54d71966ec234e1c0353485ab1925b845106db938e47", size = 954255, upload-time = "2026-09-28T14:58:16.387Z" },
+    { url = "https://files.pythonhosted.org/packages/66/e9/e27f1e0965b07672dac4ff1a61d3cbd4f595cdcbe7e0b5d86774cbd9e7c2/zeroconf-0.151.5-cp311-cp311-win_amd64.whl", hash = "sha256:ab67bb2233a0d9ce7d71d01b6791dac50d56c5a814ef1553ac97ae9c43e7eabf", size = 1090811, upload-time = "2026-09-28T14:58:18.089Z" },
 ]
 
 [[package]]
