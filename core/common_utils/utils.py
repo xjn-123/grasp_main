@@ -42,11 +42,7 @@ def inv_tf(T: np.ndarray) -> np.ndarray:
 
     return T_inv
 
-class T_cam_gripper_camputeror:
-    """
-    计算相机和 gripper 之间的变换矩阵
-    """
-    def two_finger_gripper(corner3d:np.ndarray) -> np.ndarray:
+def two_finger_gripper(corner3d:np.ndarray) -> np.ndarray:
         """
         计算双指夹爪到相机坐标的旋转矩阵
         """
@@ -82,6 +78,7 @@ class T_cam_gripper_camputeror:
         logger.info(f"{Common_data.GREEN}相机和gripper之间的变换矩阵: {T_cam_gripper}{Common_data.RESET}")
 
         return T_cam_gripper
+
 
 
 
