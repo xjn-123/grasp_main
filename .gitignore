@@ -4,3 +4,7 @@ robot_grasp/
 .vscode/
 carm_grasp-main/
 .workbuddy/
+*.png
+*.ply
+*.npy
+genate_depth_image/D405深度测试/
