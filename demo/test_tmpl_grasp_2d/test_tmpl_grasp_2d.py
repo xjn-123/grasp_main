@@ -38,21 +38,17 @@
 """
 
 import argparse
+import json
+import logging
 import os
 import sys
-import logging
-import time
-import json
 import threading
-from typing_extensions import List, Tuple, Dict
+import time
 
 import numpy as np
-import transforms3d
-
 import rclpy
-
-
-
+import transforms3d
+from typing_extensions import Dict, List, Tuple
 
 # 导入本工程的模块
 # 导入本工程的模块
@@ -60,16 +56,23 @@ code_dir = os.path.dirname(os.path.realpath(__file__))
 root_dir = os.path.normpath(f'{code_dir}/../../../')
 sys.path.append(root_dir)
 
-from core.utils import (
-    GREEN, YELLOW, BLUE, RED, RESET,
-    wait_key, inv_tf, read_cam_params, read_calib_handeye
-)
 from core.arm_wrapper import ArmWrapper
-from core.arm_utils import compute_axis_aligned_pose
+from core.utils import (
+    BLUE,
+    GREEN,
+    RED,
+    RESET,
+    YELLOW,
+    inv_tf,
+    read_calib_handeye,
+    read_cam_params,
+    wait_key,
+)
+
 from core.arm_ros_utils import TargetArmNode
+from core.arm_utils import compute_axis_aligned_pose
 from core.cam_ros_utils import CamNode
 from core.vision_utils import TagMatcher2D
-
 
 ######################################################### 全局变量 #########################################################
 

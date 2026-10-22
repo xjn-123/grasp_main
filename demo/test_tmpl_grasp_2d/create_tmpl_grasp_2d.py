@@ -27,10 +27,11 @@ code_dir = os.path.dirname(os.path.realpath(__file__))
 root_dir = os.path.normpath(f"{code_dir}/../../../")
 sys.path.append(root_dir)
 
-from core.arm_utils import compute_axis_aligned_pose
 from core.arm_wrapper import ArmWrapper
-from core.cam_ros_utils import CamNode
 from core.utils import BLUE, GREEN, RED, RESET, YELLOW, KeyboardReader, read_cam_params
+
+from core.arm_utils import compute_axis_aligned_pose
+from core.cam_ros_utils import CamNode
 from core.vision_utils import TagMatcher2D
 
 ######################################################### 全局变量 #########################################################
