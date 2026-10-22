@@ -17,4 +17,13 @@ logger = logging.getLogger(__name__)
 
 
 class CamNode(Node):
-    pass
+    def __init__(self, ):
+        pass
+
+    def get_frames(self, 
+                frames_num: int = 1,
+                do_spin_once: bool = True,
+                timeout: float = 5.0) -> list[list[float]]:
+        pass
+        
+

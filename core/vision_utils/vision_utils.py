@@ -27,7 +27,11 @@ def rgb_to_point_cloud():
 
 def depth_to_point_cloud():
     pass
+###########图像处理及定位辅助函数########################
 
+def compute_tag_pose_2d():
+    pass
+#########################2D标签匹配器类########################
 class TagMatcher2D:
     '''2D标签匹配器类，用于在图像标签识别及平面位姿估计'''
 
@@ -40,11 +44,36 @@ class TagMatcher2D:
         distortion: list[float] = None
         """ 相机畸变参数, 可选, 格式与 OpenCV 相同 """
 
+        depth_scale: float 
+        """ 深度图像的缩放比例 """
+
         tag_family: str = "tag36h11"
         """ AprilTag 的 tag family, 可选, 默认为 "tag36h11" """
 
-        black_border: int = 2
-        """ AprilTag 的黑色边框宽度, 可选, 默认为 2 """
+        black_border: int = 1
+        """ AprilTag 的黑色边框宽度, 可选, 默认为 1 """
 
         debug_dir: str = None
         """ 调试结果保存目录, 可选, 如果为 None 则不保存, 如果执行其他成员函数时设置了 debug_level > 0, 则会将中间结果保存到该目录下 """
+
+    @dataclasses
+    class Result:
+        """
+        匹配结果类, 用于存储匹配结果和相关信息
+        """
+
+        id = int(-1)
+        """标签 ID"""
+
+        center = np.zeros(2, dtype=np.float32)
+        """标签中心点 [x, y]"""
+
+        corners: np.ndarray = np.zeros((4, 2), dtype=np.float32)
+        """标签四个角点 [[x0, y0], [x1, y1], [x2, y2], [x3, y3]]"""
+
+        T_cam_tag: np.ndarray = np.eye(4, dtype=np.float32)
+        """ 从标签坐标系到相机坐标系的变换矩阵, 4*4 """
+
+    
+
+    

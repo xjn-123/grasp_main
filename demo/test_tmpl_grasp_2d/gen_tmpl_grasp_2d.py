@@ -28,6 +28,42 @@ from core.common_utils.utils import Common_data
 from core.camera_ros_utils.cam_ros_utils import CamNode
 from core.vision_utils.vision_utils import TagMatcher2D
 
+logger = logging.getLogger(__name__)
 
 
+def save_sate(
+    cam_node: CamNode, arm: ArmHelper, save_dir: str, matcher: TagMatcher2D = None
+):
+    """
+    保存当前状态为模板文件
+    Args:
+        cam_node (CamNode): 相机 ROS2 节点
+        arm (ArmHelper): 机械臂对象
+        save_dir (str): 保存路径
+        matcher (TagMatcher2D): 可选的 2D 匹配器对象, 若提供则会检测物体位置并保存到模板中
+    保存的数据:
+        data_dict = {"T_base_end": T_base_end.tolist(), 
+        "gripper_dist": gripper_dist,
+        可选"T_cam_model": T_cam_model.tolist()}
+
+        color.png: 相机拍摄的彩色图像
+
+    """
+
+    # 获取图像
+    imgs = cam_node.get_frames(do_spin_once=True)
+    if imgs is None:
+        logger.error(f"{Common_data.RED}failed to get images, skip saving tmpl{Common_data.RESET}")  # noqa: LOG015
+        return
+
+    img=imgs[0][0]  # 取第一帧第一摄像头图像
+
+    # 获取机械臂末端位姿
+    T_base_end = arm.get_cart_matrix()
+
+    # 获取夹爪距离
+    gripper_dist = arm.get_gripper_dist()
+
+    
+    # end if
 
