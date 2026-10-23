@@ -19,6 +19,7 @@ root_dir = os.path.normpath(f"{os.path.dirname(os.path.realpath(__file__))}/../.
 sys.path.append(root_dir)
 from core.common_utils .utils import Common_data
 
+from core.board_utils.apriltag_helper import apriltag_helper
 
 ########################点云生成函数########################
 
@@ -29,8 +30,53 @@ def depth_to_point_cloud():
     pass
 ###########图像处理及定位辅助函数########################
 
-def compute_tag_pose_2d():
-    pass
+def compute_tag_pose_2d(tag:apriltag_helper.Tag2D, intrinsic:list[float])->tuple[float,float,float]:
+    """
+    计算2D标签在图像中的位姿
+    Args:
+        tag (apriltag_helper.Tag2D): apriltag2检测到的标签对象
+        intrinsic (list[float]): 相机内参 [fx, fy, cx, cy]
+    Returns:
+        tuple[float,float,float]: 标签在图像中的位姿 (tx, ty, theta)
+    """
+
+    center=tag.center
+    u,v=center[0],center[1]
+    nx=(u-intrinsic[2])/intrinsic[0]#标签在图像中的归一化坐标
+    ny=(v-intrinsic[3])/intrinsic[1]#标签在图像中的归一化坐标
+    theta=np.arctan2(tag.corners[1]-tag.corners[0])
+
+    return (nx,ny,theta)
+
+#########################畸变矫正器类########################
+class ImageUndistorter:
+
+    '''图像畸变矫正器'''
+
+    def __init__(self, intrinsic:list[float], distortion:list[float] | None=None) -> None:
+
+        """
+        构造函数
+        Args:
+            intrinsic (List[float]): 相机内参 [fx, fy, cx, cy]
+            distortion (List[float]): 相机畸变参数, 格式与 OpenCV 的畸变参数格式相同, 可选, 若不提供或提供空列表则认为无畸变
+        """
+        self.D = None
+        if distortion is None and len(distortion) >0:
+            self.D = np.array(distortion, dtype=np.float64)
+
+        self._undistort_maps = []# 畸变矫正映射映射表
+
+        self.K = np.array([
+            [intrinsic[0], 0.0, intrinsic[2]],
+            [0.0, intrinsic[1], intrinsic[3]],
+            [0.0, 0.0, 1.0]
+        ], dtype=np.float64)
+
+
+
+    
+    
 #########################2D标签匹配器类########################
 class TagMatcher2D:
     '''2D标签匹配器类，用于在图像标签识别及平面位姿估计'''
