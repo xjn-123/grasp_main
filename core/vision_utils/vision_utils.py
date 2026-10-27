@@ -180,7 +180,7 @@ class TagMatcher2D:
             os.makedirs(self.debug_dir, exist_ok=True)
             Logger.info(f"{Common_data.GREEN}2D标签匹配器调试目录已创建: {self.debug_dir}{Common_data.RESET}")
 
-    def match(self, bgr_img: np.ndarray, top_k: int = 0, debug_level: int = 0) -> tuple[list[Result], str]: 
+    def match(self, bgr_img: np.ndarray, top_k: int = 0, debug_level: int = 0) -> list[Result]: 
 
         """
         匹配: 识别图像中的 AprilTag 实例, 并估计其位姿

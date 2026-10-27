@@ -25,14 +25,14 @@ sys.path.append(root_dir)
 # 导入本工程的模块
 from core.robot_helper.robot_helper import ArmHelper
 from core.common_utils.utils import Common_data
-from core.camera_ros_utils.cam_ros_utils import CamNode
+from core.camera_ros_utils.camera_ros_utils import CameraNode
 from core.vision_utils.vision_utils import TagMatcher2D
 
-logger = logging.getLogger(__name__)
+Logger = logging.getLogger(__name__)
 
 
 def save_sate(
-    cam_node: CamNode, arm: ArmHelper, save_dir: str, matcher: TagMatcher2D = None
+    cam_node: CameraNode, arm: ArmHelper, save_dir: str, matcher: TagMatcher2D = None
 ):
     """
     保存当前状态为模板文件
@@ -53,7 +53,7 @@ def save_sate(
     # 获取图像
     imgs = cam_node.get_frames(do_spin_once=True)
     if imgs is None:
-        logger.error(f"{Common_data.RED}failed to get images, skip saving tmpl{Common_data.RESET}")  # noqa: LOG015
+        Logger.error(f"{Common_data.RED}获取图像失败{Common_data.RESET}")  # noqa: LOG015
         return
 
     img=imgs[0][0]  # 取第一帧第一摄像头图像
@@ -63,6 +63,45 @@ def save_sate(
 
     # 获取夹爪距离
     gripper_dist = arm.get_gripper_dist()
+
+    data_dict = {"T_base_end": T_base_end.tolist(), "gripper_dist": gripper_dist}
+
+    if matcher is not None: 
+        result_list = matcher.match(img, top_k=1)
+        if len(result_list) == 0:
+            Logger.warning(f"{Common_data.YELLOW}未匹配到apriltag{Common_data.RESET}")
+            return
+
+        pose_2d = result_list[0].pose_2d
+        data_dict["obj_pose_2d"] = [float(x) for x in pose_2d]
+
+        bgr_img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+        save_bgr_img = bgr_img.copy()#用于保存的bgr图像
+
+        matcher.draw(bgr_img, result_list)#绘制匹配结果
+        save_tag_dir = os.path.join(save_dir, "tag.png")
+        save_color_dir = os.path.join(save_dir, "color.png")
+        save_data_dir = os.path.join(save_dir, "state.json")
+
+        cv2.imwrite(save_tag_dir, bgr_img)
+        cv2.imwrite(save_color_dir, save_bgr_img)
+
+        with open(save_data_dir, "w") as f:
+            json.dump(data_dict, f, indent=4)
+
+        Logger.info(f"{Common_data.GREEN}保存模板到{save_dir}{Common_data.RESET}")
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+
+
+
+
+
+
+    
+
 
     
     # end if

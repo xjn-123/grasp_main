@@ -89,7 +89,7 @@ def save_state(
     cv2.imwrite(img_path, cv2.cvtColor(rgb_img, cv2.COLOR_RGB2BGR))
     logging.info(f"saved image to: {GREEN}{img_path}{RESET}")  # noqa: LOG015
 
-    file_path = os.path.join(save_dir, f"state.json")
+    file_path = os.path.join(save_dir, "state.json")
     with open(file_path, "w") as f:
         json.dump(data_dict, f, indent=4)
     logging.info(f"saved state to: {GREEN}{file_path}{RESET}")  # noqa: LOG015

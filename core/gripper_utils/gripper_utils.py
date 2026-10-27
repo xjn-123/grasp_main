@@ -15,7 +15,7 @@ sys.path.append(root_dir)
 from core.common_utils.utils import Common_data,inv_tf
 from core.vision_utils.vision_utils import rgb_to_point_cloud,depth_to_point_cloud
 
-logger = logging.getLogger(__name__)
+Logger = logging.getLogger(__name__)
 
 class Gripper:
     pass
