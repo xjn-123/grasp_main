@@ -1,12 +1,18 @@
 """通用工具函数和常量"""
 
+import atexit
 import dataclasses
 import json
 import logging
+import select
+import sys
+import termios
+import tty
+from typing import Optional
 
 import numpy as np
 
-logger = logging.getLogger(__name__)
+Logger = logging.getLogger(__name__)
 @dataclasses
 class Common_data:
     # 彩色打印定义
@@ -50,11 +56,11 @@ def two_finger_gripper(corner3d:np.ndarray) -> np.ndarray:
         center=corner3d.mean(axis=0)   # 计算四角形的中心点,沿数组的第0维（行）进行求平均
 
         #计算xy轴
-        edge_x=corner3d[2]-corner3d[0]
+        edge_x=corner3d[0]-corner3d[2]
         edge_y=corner3d[3]-corner3d[1]
 
         if np.linalg.norm(edge_x) < 1e-6 or np.linalg.norm(edge_y) < 1e-6:
-            logger.error(f"{Common_data.RED}请检查输入的corner3d,对角点的x或y值相差过小{Common_data.RESET}")
+            Logger.error(f"{Common_data.RED}请检查输入的corner3d,对角点的x或y值相差过小{Common_data.RESET}")
             return None
         
         #np.linalg.norm 计算向量的模长
@@ -75,62 +81,93 @@ def two_finger_gripper(corner3d:np.ndarray) -> np.ndarray:
         T_cam_gripper[:3, :3] = np.column_stack([x_axis, y_axis, z_axis])
         T_cam_gripper[:3, 3] = center.reshape(3, 1)
 
-        logger.info(f"{Common_data.GREEN}相机和gripper之间的变换矩阵: {T_cam_gripper}{Common_data.RESET}")
+        Logger.info(f"{Common_data.GREEN}相机和gripper之间的变换矩阵: {T_cam_gripper}{Common_data.RESET}")
 
         return T_cam_gripper
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        
-
-
-#########################################加载读取文件方法#####################################
-
-def read_cam_params(json_file_path: str) -> tuple[list[float], list[float],float]:
-    """
-    读取相机内参和畸变参数,
-    兼容读取RGB—D相机深度缩放系数
-    """
+def read_camera_params(json_file_path: str) -> tuple[list[float], list[float],Optional:float]:
+    '''
+    读取相机内参和畸变参数
+    Args:   json_file_path (str): 相机参数文件路径
+    Returns:  tuple[list[float], list[float],Optional:float]:  返回相机内参矩阵, 畸变系数, 深度缩放系数
+    '''
 
     try:
         with open(json_file_path, 'r') as f:
             cam_params = json.load(f)
     except Exception as e:
-        logger.error(f"{Common_data.RED}读取相机参数文件失败, 请检查路径是否正确:{e}{Common_data.RESET}")
+        Logger.error(f"{Common_data.RED}读取相机参数文件失败, 请检查路径是否正确:{e}{Common_data.RESET}")
 
-    #读取相机序列号
+    #读取相机序列号,如果有
     if "serial_number" in cam_params:
-        logger.info(f"{Common_data.GREEN}相机序列号: {cam_params['serial_number']}{Common_data.RESET}")
+        Logger.info(f"{Common_data.GREEN}相机序列号: {cam_params['serial_number']}{Common_data.RESET}")
 
-    if "intrinsic" not in cam_params or "distortion" not in cam_params:
-        logger.error(f"{Common_data.RED}相机参数文件中缺少'intrinsic'或'distortion'字段{Common_data.RESET}")
+    if "intrinsic" not in cam_params :
+        Logger.error(f"{Common_data.RED}相机参数文件中缺少'intrinsic'字段{Common_data.RESET}")
         return None, None, None
 
+    if "distortion" not in cam_params:
+        distortion=None
+        Logger.warning(f"{Common_data.YELLOW}相机参数文件中缺少'distortion'字段{Common_data.RESET}")
+    else:
+        distortion = cam_params["distortion"]
+
     intrinsic = cam_params["intrinsic"]
-    distortion = cam_params["distortion"]
+   
 
     if "depth_scale"  in cam_params:
         depth_scale = cam_params["depth_scale"]
-        logger.info(f"{Common_data.GREEN}相机深度缩放系数: {depth_scale}{Common_data.RESET}")
-        logger.info(f"{Common_data.GREEN}相机内参: {intrinsic}{Common_data.RESET}")
-        logger.info(f"{Common_data.GREEN}相机畸变: {distortion}{Common_data.RESET}")
-        return intrinsic, distortion, depth_scale
-    else:    # 兼容旧版本   
-        logger.info(f"{Common_data.GREEN}相机内参: {intrinsic}{Common_data.RESET}")
-        logger.info(f"{Common_data.GREEN}相机畸变: {distortion}{Common_data.RESET}")
-        return intrinsic, distortion
+    else:
+        depth_scale=None
+        Logger.warning(f"{Common_data.YELLOW}相机参数文件中缺少'depth_scale'字段{Common_data.RESET}")
+
+    return intrinsic, distortion, depth_scale
+
+  
+class KeyboardReader:
+    """
+    键盘输入读取类, 用于非阻塞读取单个按键
+    """
+
+    def __init__(self):
+        self.fd = sys.stdin.fileno()
+        self._tcsetattr = termios.tcsetattr
+        self._tcgetattr = termios.tcgetattr
+        self.old_settings = self._tcgetattr(self.fd)
+        tty.setcbreak(self.fd)
+        self._closed = False
+        atexit.register(self._close)
+    # end def __init__
+
+    def _close(self):
+        if self._closed:
+            return
+        try:
+            self._tcsetattr(self.fd, termios.TCSADRAIN, self.old_settings)
+        finally:
+            self._closed = True
+    # end def close
+
+    def __del__(self):
+        try:
+            self._close()
+        except Exception:
+            pass
+    # end def __del__
+
+    def read_key(self):
+        rlist, _, _ = select.select([sys.stdin], [], [], 0)
+        return sys.stdin.read(1) if rlist else None
+    # end def read_key
+
+
+
+
+
+
+
+
+
 
 
 

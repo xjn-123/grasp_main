@@ -10,22 +10,19 @@ if not logging.getLogger().hasHandlers():
                         datefmt='%m-%d %H:%M:%S',
                         force=True)
 
+import atexit
+import json
 import os
+import select
 import sys
 import termios
 import tty
-import select
-import atexit
 from datetime import datetime
-
-import json
-
-from typing_extensions import List, Tuple, Dict
 
 import cv2
 import numpy as np
 import transforms3d
-
+from typing_extensions import Dict, List, Tuple
 
 ######################################################### 全局常量 #########################################################
 

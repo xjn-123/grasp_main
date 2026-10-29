@@ -23,15 +23,16 @@ root_dir = os.path.normpath(f"{os.path.dirname(os.path.realpath(__file__))}/../.
 sys.path.append(root_dir)
 
 # 导入本工程的模块
-from core.robot_helper.robot_helper import ArmHelper
-from core.common_utils.utils import Common_data
 from core.camera_ros_utils.camera_ros_utils import CameraNode
+from core.common_utils.utils import Common_data, KeyboardReader, read_camera_params
+from core.gripper_utils.gripper_utils import com_axis_aligned_pose
+from core.robot_helper.robot_helper import ArmHelper
 from core.vision_utils.vision_utils import TagMatcher2D
 
 Logger = logging.getLogger(__name__)
 
 
-def save_sate(
+def save_state(
     cam_node: CameraNode, arm: ArmHelper, save_dir: str, matcher: TagMatcher2D = None
 ):
     """
@@ -58,7 +59,7 @@ def save_sate(
 
     img=imgs[0][0]  # 取第一帧第一摄像头图像
 
-    # 获取机械臂末端位姿
+    # 获取机械臂末端位姿矩阵
     T_base_end = arm.get_cart_matrix()
 
     # 获取夹爪距离
@@ -95,6 +96,145 @@ def save_sate(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
+    parser.add_argument("--cam_param_path", require=True,type=str,help="相机参数文件路径")
+    parser.add_argument("--color_img_topic", require=True,type=str,help="彩色图像话题名称")
+    parser.add_argument("--save_dir", require=True,type=str,help="保存模板文件的目录")
+
+    args = parser.parse_args()
+
+    if args.cam_param_path is None or args.color_img_topic is None or args.save_dir is None:  # noqa: PLR5501
+        print(f"{Common_data.RED}参数错误！{Common_data.RESET}")
+        sys.exit(1)
+
+    #加载参数
+    cam_params_path = args.cam_param_path
+    intrinsic, distortion, depth_scale = read_camera_params(cam_params_path)
+    color_img_topic = args.color_img_topic
+    save_dir = args.save_dir
+    #规范化路径
+    save_dir = os.path.normpath(save_dir)
+    os.makedirs(save_dir, exist_ok=True)
+
+    print(f"{Common_data.GREEN}相机参数:\nintrinsic:{intrinsic}\ndistortion{distortion}\ndepth_scale{depth_scale}{Common_data.RESET}")
+    print(f"{Common_data.GREEN}保存模板文件目录:{save_dir}{Common_data.RESET}")
+    print(f"{Common_data.GREEN}图像话题名{color_img_topic}{Common_data.RESET}")
+
+    #创建匹配器对象
+    config=TagMatcher2D.Config(intrinsic=intrinsic, distortion=distortion)
+    matcher = TagMatcher2D(config)
+
+    #创建机械臂对象
+    arm = ArmHelper()
+    if not arm.is_connected():
+        Logger.error(f"{Common_data.RED}机械臂连接失败！{Common_data.RESET}")
+        sys.exit(1)
+
+    #创建相机节点
+    rclpy.init(args=None)
+    cam_node = CameraNode([color_img_topic])
+
+    #创建键盘读取器对象
+    key_reader = KeyboardReader()
+
+    print()
+    print(
+        f"use keyboard to control: \n{Common_data.BLUE}"
+        f"  q: 退出程序\n"
+        f"  a: 使末端的 z 轴方向与基座的 -z 轴平行\n"
+        f"  <: 缩小夹爪之间的距离\n"
+        f"  >: 放大夹爪之间的距离\n"
+        f"  g: 保存抓取时的状态\n"
+        f"  n: 保存相机距离物体较近时的状态\n"
+        f"  b: 保存下一个相机距离物体较近时的状态\n"
+        f"  f: 保存相机距离物体较远时的状态\n"
+        f"  d: 保存下一个相机距离物体较远时的状态\n"
+        f"{Common_data.RESET}"
+    )
+
+    while rclpy.ok():
+        key=key_reader.read_key()
+
+        if key == "q": 
+            Logger.info(f"{Common_data.YELLOW}退出程序{Common_data.RESET}") # 退出程序
+            break
+
+        if key == "a":
+            '使末端的 z 轴方向与基座的 -z 轴平行'
+            current_T_base_end = arm.get_cart_matrix()
+            target_T_base_end = com_axis_aligned_pose(current_T_base_end, base_axis_idx=-3, obj_axis_idx=3)
+            if target_T_base_end is None:
+                Logger.error(f"{Common_data.RED}目标位姿计算失败{Common_data.RESET}")
+                continue
+            is_ok=arm.set_pose(target_T_base_end)
+            if not is_ok:
+                Logger.error(f"{Common_data.RED}位姿调整失败{Common_data.RESET}")
+
+        # 夹爪控制
+        gripper_step = 0.001  # 夹爪每次移动的步长
+        gripper_dist = arm.get_gripper_dist()
+
+        if key == ",":  # 缩小夹爪
+            set_dist = gripper_dist - gripper_step
+            arm.set_gripper_dist(set_dist)
+            Logger.info(
+                f"{Common_data.BLUE}调整夹爪 {gripper_dist:.3f} -->> {set_dist:.3f}, 已调整夹爪至: {arm.get_gripper_dist():.3f}{Common_data.RESET}"
+            )
+        elif key == ".":  # 放大夹爪
+            set_dist = gripper_dist + gripper_step
+            arm.set_gripper_dist(set_dist)
+            Logger.info(
+                f"{Common_data.BLUE}调整夹爪 {gripper_dist:.3f} -->> {set_dist:.3f}, 已调整夹爪至: {arm.get_gripper_dist():.3f}{Common_data.RESET}"
+            )
+
+        if key == "g":  # 保存抓取时的状态
+            Logger.info(f"{Common_data.BLUE}开始保存抓取时的状态{Common_data.RESET}")
+
+            save_dir=os.path.join(save_dir, "grasp")
+            os.makedirs(save_dir, exist_ok=True)
+
+            save_state(cam_node, arm, save_dir, matcher)
+
+        if key == "g":  # 保存近距离时的状态
+            Logger.info(f"{Common_data.BLUE}开始近距离时的状态{Common_data.RESET}")
+
+            save_dir=os.path.join(save_dir, "near")
+            os.makedirs(save_dir, exist_ok=True)
+            
+            save_state(cam_node, arm, save_dir, matcher)
+
+        if key == "b":  # 保存下一个近距离时的状态
+            Logger.info(f"{Common_data.BLUE}开始保存下一个近距离时的状态{Common_data.RESET}")
+
+            save_dir=os.path.join(save_dir, "next_near")
+            os.makedirs(save_dir, exist_ok=True)
+
+            save_state(cam_node, arm, save_dir, matcher)
+
+        if key == "f":  # 保存距离物体较远时的状态
+            Logger.info(f"{Common_data.BLUE}开始保存距离物体较远时的状态{Common_data.RESET}")
+
+            save_dir=os.path.join(save_dir, "far")
+            os.makedirs(save_dir, exist_ok=True)
+
+            save_state(cam_node, arm, save_dir, matcher)
+        #
+        if key == "d":  # 保存下一个距离物体较远时的状态
+            Logger.info(f"{Common_data.BLUE}开始保存下一个距离物体较远时的状态{Common_data.RESET}")
+
+            save_dir=os.path.join(save_dir, "next_far")
+            os.makedirs(save_dir, exist_ok=True)
+
+            save_state(cam_node, arm, save_dir, matcher)
+
+
+        
+
+        
+
+
+    
+
+
 
 
 
@@ -103,6 +243,4 @@ if __name__ == "__main__":
     
 
 
-    
-    # end if
 

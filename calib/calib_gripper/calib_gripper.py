@@ -14,12 +14,11 @@ import cv2
 import open3d
 
 code_dir = os.path.dirname(os.path.realpath(__file__))
-root_dir = os.path.normpath(code_dir, "/../../")
+root_dir = os.path.normpath(f'{code_dir}/../../')
 sys.path.append(root_dir)
 
 from core.board_utils import apriltag_helper  # noqa: I001
-import core.common_utils as utils
-from core.common_utils.utils import Common_data
+from core.common_utils.utils import (two_finger_gripper,read_camera_params)
 
 logger = logging.getLogger(__name__)
 
@@ -41,10 +40,10 @@ def campute_corners3d(
     ''' 检测apriltag的角点'''
     detector = apriltag_helper.Detector(tag_family="tag36h11")
     tag = detector.detect(un_img)
-    tag_corners = tag.corners       #四个角点的图像坐标
+    tag_corners = tag[0].corners       #四个角点的图像坐标
 
     #构建点云掩膜,
-    tag_center = tag.coenter
+    tag_center = tag[0].center
     expand_corners = []
 
     for corner in tag_corners:
@@ -106,14 +105,6 @@ def campute_corners3d(
 
     return  corners3d
 
-'''计算T_cam_gripper'''
-def camputer_T_cam_gripper(
-    corners3d: np.ndarray,
-    corners: np.ndarray,
-    intrinsic: np.ndarray,
-) -> np.ndarray:
-    ''' 计算apriltag的旋转矩阵'''
-
 
 def main():
 
@@ -123,16 +114,14 @@ def main():
     parser.add_argument("--depth_image_dir",type=str,required=True,help="深度图像文件夹路径")
     parser.add_argument("--camera_param_dir",type=str,required=True,help="相机内参文件路径")
     parser.add_argument("--gripper_param_dir",type=str,required=True,help="夹爪标定结果的写入文件保存路径")
-    parser.add_argument("--depth_scale",type=float,required=True,help="深度图depth_scale")
     parser.add_argument("--expand_scale",type=float,default=3.0,help="角点缩放系数")
 
     args=parser.parse_args()
 
     color_image_dir=args.color_image_dir
     depth_image_dir=args.depth_image_dir
-    camera_param_dir=args.intrinsic_dir
+    camera_param_dir=args.camera_param_dir
     gripper_param_dir=args.gripper_param_dir
-    depth_scale=args.depth_scale
     expand_scale=args.expand_scale
 
     #读取彩色和深度图
@@ -144,13 +133,14 @@ def main():
         return
 
     #读取相机内参
-    intrinsic,distortion=utils.read_cam_params(camera_param_dir)
+    intrinsic,distortion,depth_scale=read_camera_params(camera_param_dir)
 
     #计算apriltag的角点3d坐标
-    consers_3d=campute_corners3d(color_image,depth_image,intrinsic,distortion,depth_scale,expand_scale)
+    gray_image=cv2.cvtColor(color_image,cv2.COLOR_BGR2GRAY)
+    consers_3d=campute_corners3d(gray_image,depth_image,intrinsic,distortion,depth_scale,expand_scale)
 
     '''计算T_cam_gripper'''
-    T_cam_gripper=utils.camputer_T_cam_gripper(consers_3d)
+    T_cam_gripper=two_finger_gripper(consers_3d)
 
     #保存夹爪标定结果
     save_json={}

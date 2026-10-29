@@ -14,9 +14,8 @@ core_dir = os.path.dirname(os.path.realpath(__file__))
 root_dir = os.path.normpath(f"{core_dir}/../../")
 sys.path.append(root_dir)
 
-import core.common_utils.utils as utils
 from core.board_utils import apriltag_helper
-from core.common_utils.utils import Common_data
+from core.common_utils.utils import (Common_data,two_finger_gripper,read_camera_params,inv_tf)
 
 logger = logging.getLogger(__name__)
 
@@ -106,11 +105,7 @@ def calib_handeye(
     T_cam_board_list=[]
     T_base_end__list=[]
 
-    for img_id in range(len(T_base_end__dict)):
-
-        if img_id not in T_cam_board_dict:
-            logger.warning(f"采集序号 {img_id} 在 T_cam_board_dict 中不存在, 将跳过该序号")
-            continue
+    for img_id in (T_base_end__dict.keys() & T_cam_board_dict.keys()):
 
         T_base_end__list.append(T_base_end__dict[img_id])
         T_cam_board_list.append(T_cam_board_dict[img_id])   
@@ -139,8 +134,8 @@ def calib_handeye(
         T23s=np.array(T_cam_board_list, dtype=np.float64)
 
         for i in range(len(T01s)):
-            T01s[i] = utils.inv_tf(T01s[i])
-            T23s[i] = utils.inv_tf(T23s[i])
+            T01s[i] = inv_tf(T01s[i])
+            T23s[i] = inv_tf(T23s[i])
 
         T_cam_base = save_AXXB(T01s, T23s)
         error_angle, error_translation = compute_error(T01s, T23s, T_cam_base)
@@ -171,13 +166,16 @@ def main():
     print(f"\n图像目录={image_dir}\n机械臂位姿文件={arm_pose_path}\n相机参数文件={cam_param_path}\n标定板信息={board_info}\n")
 
     #加载相机参数文件
-    intrinsic, distortion=utils.read_cam_params(cam_param_path)
+    intrinsic, distortion,depth_scale=read_camera_params(cam_param_path)
     if intrinsic is None or distortion is None:  
         print(f"{Common_data.RED}相机参数文件错误！{Common_data.RESET}")
         sys.exit(1)
 
     K=np.array([[intrinsic[0],0,intrinsic[2]],[0,intrinsic[1],intrinsic[3]],[0,0,1]]) #创建相机内参矩阵
     D=np.array(distortion)                                                            #创建相机畸变参数向量
+
+    cam_pose_dict={}  #存储每张图像对应的标定板位姿  
+    arm_pose_dict={}  #存储每张图像对应的机械臂末端位姿
 
     #加载机械臂末端位姿文件
     with open(arm_pose_path, 'r') as f:
@@ -187,15 +185,12 @@ def main():
             sys.exit(1)
     
     #创建标定板
-    tag3d_list=apriltag_helper.create_board_3d_points(board_info[0], board_info[1], board_info[2], board_info[3])
+    tag3d_list=apriltag_helper.create_calib_board_3d(board_info[0], board_info[1], board_info[2], board_info[3])
 
     #创建apriltag检测器
     detector=apriltag_helper.Detector(tag_family="tag36h11")
 
     #检测图像中的tag
-    cam_pose_dict={}  #存储每张图像对应的标定板位姿  
-    arm_pose_dict={}  #存储每张图像对应的机械臂末端位姿
-
     image_path_list=glob.glob(f"{image_dir}/*.png")
     image_path_list.sort()
 
@@ -219,7 +214,7 @@ def main():
             continue
         tag2d_list=detector.detect(img,-1)
 
-        cam_pose=apriltag_helper.locate_calib_board(tag3d_list, tag2d_list, K, D) #检测计算T_cam_board
+        cam_pose=apriltag_helper.locate_calib_board(tag2d_list, tag3d_list, K, D) #检测计算T_cam_board
 
         if cam_pose is None:
             logger.warning(f"{Common_data.YELLOW}无法在{image_name}中定位标定板，跳过.{Common_data.RESET}")
@@ -230,21 +225,21 @@ def main():
         arm_pose_dict[f"{image_id}"]=np.array(arm_pose)
         cam_pose_dict[f"{image_id}"]=cam_pose
 
-        #执行手眼标定
-        result_T=calib_handeye(arm_pose_dict, cam_pose_dict,eye_in_hand)
+    #执行手眼标定
+    result_T=calib_handeye(arm_pose_dict, cam_pose_dict,eye_in_hand)
 
-        #保存结果
-        save_path=os.path.join(os.path.dirname(cam_param_path),"calib_handeye.json")
-        result={}
+    #保存结果
+    save_path=os.path.join(os.path.dirname(cam_param_path),"calib_handeye.json")
+    result={}
 
-        if eye_in_hand:
-            result["T_end_cam"]=utils.matrix_to_array(result_T)
-        else:
-            result["T_base_cam"]=utils.matrix_to_array(result_T)
+    if eye_in_hand:
+        result["T_end_cam"]=result_T.tolist()
+    else:
+        result["T_base_cam"]=result_T.tolist()
 
-        with open(save_path, 'w') as f:
-            json.dump(result, f,indent=4)
-        logger.info(f"结果保存到{save_path}") 
+    with open(save_path, 'w') as f:
+        json.dump(result, f,indent=4)
+    logger.info(f"结果保存到{save_path}") 
 
 if __name__=="__main__":
     main()
