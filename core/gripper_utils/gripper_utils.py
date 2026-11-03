@@ -80,6 +80,50 @@ class Gripper:
 
         return T_cam_gripper
 
+    def get_rects_3d(self, dist: float, T_target_cam: np.ndarray)-> np.ndarray:
+
+        """
+        用两个空间矩形表示夹爪的位置,计算夹爪的八个角点的3D坐标( 目标坐标系下 )     
+        Args:
+            dist (float): 两个夹爪矩形之间的距离 (单位: m)
+            T_target_cam (np.ndarray): 从相机坐标系到目标坐标系的变换矩阵, 形状为 (4, 4)
+        Returns:
+            (np.ndarray): 两个夹爪夹爪共八个角点的3D坐标, 形状为 (8, 3), 每个夹爪四个角点按[左下,右下,右上,左上]顺序排列
+        """
+        w=self.width
+        t=self.thickness
+        hd=dist/2.0
+        hw=w/2.0
+
+        # 计算夹爪在夹爪坐标系下的八个角点坐标
+        left_rect=np.array([[-hd-t,hw,0,1],
+                            [-hd,hw,0,1],
+                            [-hd,-hw,0,1],
+                            [-hd-t,-hw,0,1]],dtype=np.float32).T
+        
+        right_rect=np.array([[hd,hw,0,1],
+                            [hd+t,hw,0,1],
+                            [hd+t,-hw,0,1],
+                            [hd,-hw,0,1]],dtype=np.float32).T
+        # 将夹爪角点从夹爪坐标系转换到目标坐标系
+        T_target_gripper=T_target_cam@self.T_cam_gripper
+        left_rect_3d=(T_target_gripper@left_rect).T[:,:3]
+        right_rect_3d=(T_target_gripper@right_rect).T[:,:3]
+        rects_3d=np.vstack([left_rect_3d,right_rect_3d])
+        return rects_3d
+        
+class CollisionDetector:
+    """
+    夹爪碰撞检测器类,用于检测夹爪与环境的碰撞，
+    通过将夹爪的两个矩形与环境点云进行碰撞检测来判断夹爪是否与环境发生碰撞
+    仅适用于eye-in-hand场景
+    """
+
+    def __init__(self, gripper: Gripper):
+        self.gripper = gripper
+
+
+
 #####################夹爪位姿调整与检查函数#######################
 def check_gripper_pose():
     pass
