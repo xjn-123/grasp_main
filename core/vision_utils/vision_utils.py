@@ -2,15 +2,14 @@
 视觉定位相关的工具函数和类
 """
 
+import dataclasses
+import logging
+import math
 import os
 import sys
-import logging
-import dataclasses
 
-import math
-
-import numpy as np
 import cv2
+import numpy as np
 import open3d
 
 #import apriltag2
@@ -25,11 +24,130 @@ Logger = logging.getLogger(__name__)
 
 ########################点云生成函数########################
 
-def rgb_to_point_cloud():
-    pass
+_DEPTH_DTYPES = (np.uint16, np.float32)
+"""支持的深度图类型: uint16( 原始深度, 单位由 depth_scale 决定 ) 或 float32( 已换算成米 )"""
 
-def depth_to_point_cloud():
-    pass
+
+def _prepare_depth(depth_img: np.ndarray,
+                   depth_scale: float,
+                   depth_range: tuple[float, float] = None) -> np.ndarray:
+    '''校验深度图参数, 并按深度范围( 米 )过滤
+
+    Args:
+        depth_img (np.ndarray): 深度图像, uint16 或 float32
+        depth_scale (float): 深度图单位换算成米的系数, z( 米 ) = 像素值 * depth_scale
+        depth_range (tuple[float, float], optional): 保留的深度范围 (min, max), 单位米
+
+    Returns:
+        (np.ndarray): 过滤后的深度图, 保持原始 dtype, 可直接交给 Open3D
+    '''
+
+    assert isinstance(depth_img, np.ndarray) and depth_img.ndim == 2, "depth_img must be a 2D array"
+    assert depth_img.dtype in _DEPTH_DTYPES, \
+        f"depth_img dtype must be uint16 or float32, got {depth_img.dtype}"
+    assert isinstance(depth_scale, (int, float)) and depth_scale > 0, \
+        "depth_scale must be a positive number, e.g. 0.001 for a uint16 depth map in millimeters"
+
+    if depth_range is None:
+        return depth_img
+    # end if
+
+    min_depth, max_depth = depth_range
+    assert min_depth >= 0 and max_depth > min_depth, \
+        "depth_range must be (min_depth, max_depth) in meters with min_depth >= 0"
+
+    # 把以米为单位的范围换算回深度图的原始单位, 避免整幅图先做一次浮点乘法
+    raw_min = min_depth / depth_scale
+    raw_max = max_depth / depth_scale
+    filter_depth_img = depth_img.copy()
+    filter_depth_img[(filter_depth_img < raw_min) | (filter_depth_img > raw_max)] = 0
+    return filter_depth_img
+# end def _prepare_depth
+
+
+def rgbd_to_point_cloud(rgb_img: np.ndarray,
+                        depth_img: np.ndarray,
+                        intrinsic: list[float],
+                        depth_range: tuple[float, float] = None,
+                        depth_trunc: float = 3.0,
+                        depth_scale: float = 1.0) -> open3d.geometry.PointCloud:
+
+    '''将 RGB-D 图像转换为点云
+    Args:
+        rgb_img (np.ndarray): RGB 图像 CV_8UC3
+        depth_img (np.ndarray): 深度图像, uint16 或 float32
+        intrinsic (list[float]): 相机内参 [fx, fy, cx, cy]
+        depth_scale (float): 深度图单位换算成米的系数, z( 米 ) = 像素值 * depth_scale
+            - uint16 毫米深度图传 0.001; 已经用米表示的 float32 图传 1.0( 默认 )
+        depth_range (tuple[float, float], optional): 保留的深度范围 (min, max), 单位米
+        depth_trunc (float): 超过该深度( 米 )的点会被丢弃, 默认 3.0; 传 float('inf') 表示不截断
+    Returns:
+        open3d.geometry.PointCloud: 生成的点云
+    '''
+
+    #判断图像类型
+    assert rgb_img.dtype == np.uint8 and rgb_img.ndim == 3 and rgb_img.shape[2] == 3, "rgb_img must be CV_8UC3"
+    assert intrinsic is not None and len(intrinsic) == 4, "intrinsic must be a list of 4 elements [fx, fy, cx, cy]"
+    assert rgb_img.shape[:2] == depth_img.shape[:2], "rgb_img and depth_img must have the same resolution"
+
+    #将超出深度范围的深度置0
+    filter_depth_img = _prepare_depth(depth_img, depth_scale, depth_range)
+
+    #将RGB-D图像转换为点云
+    o3d_depth = open3d.geometry.Image(np.ascontiguousarray(filter_depth_img))  #将深度图像转换为Open3D格式
+    o3d_rgb = open3d.geometry.Image(np.ascontiguousarray(rgb_img))  #将RGB图像转换为Open3D格式
+
+    #将彩色图像和深度图像对应点对匹配( Open3D 的 depth_scale 定义是"像素值/米", 与本函数的定义互为倒数 )
+    o3d_rgbd = open3d.geometry.RGBDImage.create_from_color_and_depth(
+        o3d_rgb,
+        o3d_depth,
+        depth_scale=1.0 / depth_scale,
+        depth_trunc=depth_trunc,
+        convert_rgb_to_intensity=False,
+    )
+
+    #生成点云
+    rgbd_pc = open3d.geometry.PointCloud.create_from_rgbd_image(
+        o3d_rgbd,
+        #针孔相机模型对象，用于像素到空间点的反投影，为点云提供xy方向的物理信息
+        open3d.camera.PinholeCameraIntrinsic(rgb_img.shape[1], rgb_img.shape[0], intrinsic[0], intrinsic[1], intrinsic[2], intrinsic[3]),
+    )
+
+    return rgbd_pc
+# end def rgbd_to_point_cloud
+
+
+def depth_to_point_cloud(depth_img: np.ndarray,
+                         intrinsic: list[float],
+                         depth_range: tuple[float, float] = None,
+                         depth_trunc: float = 3.0,
+                         depth_scale: float = 1.0) -> open3d.geometry.PointCloud:
+    '''将深度图像转换为点云
+    Args:
+        depth_img (np.ndarray): 深度图像, uint16 或 float32
+        intrinsic (list[float]): 相机内参 [fx, fy, cx, cy]
+        depth_scale (float): 深度图单位换算成米的系数, z( 米 ) = 像素值 * depth_scale
+            - uint16 毫米深度图传 0.001; 已经用米表示的 float32 图传 1.0( 默认 )
+        depth_range (tuple[float, float], optional): 保留的深度范围 (min, max), 单位米
+        depth_trunc (float): 超过该深度( 米 )的点会被丢弃, 默认 3.0; 传 float('inf') 表示不截断
+    Returns:
+        open3d.geometry.PointCloud: 生成的点云
+    '''
+
+    assert intrinsic is not None and len(intrinsic) == 4, "intrinsic must be a list of 4 elements [fx, fy, cx, cy]"
+
+    filter_depth_img = _prepare_depth(depth_img, depth_scale, depth_range)
+
+    depth_pc = open3d.geometry.PointCloud.create_from_depth_image(
+        open3d.geometry.Image(np.ascontiguousarray(filter_depth_img)),
+        open3d.camera.PinholeCameraIntrinsic(depth_img.shape[1], depth_img.shape[0], intrinsic[0], intrinsic[1], intrinsic[2], intrinsic[3]),
+        depth_scale=1.0 / depth_scale,
+        depth_trunc=depth_trunc,
+    )
+
+    return depth_pc
+# end def depth_to_point_cloud
+
 ###########图像处理及定位辅助函数########################
 
 def compute_tag_pose_2d(tag:apriltag_helper.Tag2D, intrinsic:list[float])->tuple[float,float,float]:
