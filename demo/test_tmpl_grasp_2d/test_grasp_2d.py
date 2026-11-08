@@ -47,26 +47,250 @@ import time
 
 import numpy as np
 import rclpy
+import transforms3d
 
 root_dir = os.path.normpath(os.path.dirname(os.path.realpath(__file__)), "/../../")
 sys.path.append(root_dir)
 
 from core.camera_ros_utils.camera_ros_utils import CameraNode
 from core.common_utils.utils import (
-    Common_data,
-    inv_tf,
-    read_calib_params,
-    read_camera_params,
-    wait_key,
+   Common_data,
+   inv_tf,
+   read_calib_params,
+   read_camera_params,
+   wait_key,
 )
 from core.gripper_utils.gripper_utils import com_axis_aligned_pose
 from core.robot_helper.robot_helper import ArmHelper
 from core.vision_utils.vision_utils import TagMatcher2D
 
+Logger = logging.getLogger(__name__)
 
 
-def read_tmpl_grasp_2d(tmpl_dir: str) -> Dict:
-    
+def read_tmpl_grasp_2d(tmpl_dir: str) -> dict:
+   '''读取模板数据'''
+
+   #读取抓取位姿的模板数据
+   filepath = os.path.join(tmpl_dir, "/grasp/state.json")
+   with open(filepath, "r") as f:
+      grasp_staste = json.load(f)
+
+   grasp_dist = grasp_staste["gripper_dist"]
+   grasp_T_base_end = np.array(grasp_staste["T_base_end"])
+
+   #读取位于近距离的模板数据
+   near_filepath = os.path.join(tmpl_dir, "/near/state.json")
+   with open(near_filepath, "r") as f:
+      near_staste = json.load(f)
+
+   near_dist = near_staste["gripper_dist"]
+   near_T_base_end = np.array(near_staste["T_base_end"])
+   near_obj_pose_2d  = np.array(near_staste["obj_pose_2d"])
+
+   near_next_filepath = os.path.join(tmpl_dir, "/near_next/state.json")
+   with open(near_next_filepath, "r") as f:
+      near_next_staste = json.load(f)
+
+   near_next_dist = near_next_staste["gripper_dist"]
+   near_next_T_base_end = np.array(near_next_staste["T_base_end"])
+   near_next_obj_pose_2d  = np.array(near_next_staste["obj_pose_2d"])
+
+   #读取位于远方的模板数据
+   far_filepath = os.path.join(tmpl_dir, "/far/state.json")
+   with open(far_filepath, "r") as f:
+      far_staste = json.load(f)
+
+   far_dist = far_staste["gripper_dist"]
+   far_T_base_end = np.array(far_staste["T_base_end"])
+   far_obj_pose_2d  = np.array(far_staste["obj_pose_2d"])
+
+   #读取位于远方下一个模板数据
+   far_next_filepath = os.path.join(tmpl_dir, "/far_next/state.json")
+   with open(far_next_filepath, "r") as f:
+      far_next_staste = json.load(f)
+
+   far_next_dist = far_next_staste["gripper_dist"]
+   far_next_T_base_end = np.array(far_next_staste["T_base_end"])
+   far_next_obj_pose_2d  = np.array(far_next_staste["obj_pose_2d"])
+
+   tmpl_dict={
+      'grasp_grapper_dist':grasp_dist,
+      'grasp_T_base_end':grasp_T_base_end,
+
+      'near_grapper_dist':near_dist,
+      'near_T_base_end':near_T_base_end,
+      'near_obj_pose_2d':near_obj_pose_2d,
+      'near_next_grapper_dist':near_next_dist,
+      'near_next_T_base_end':near_next_T_base_end,
+      'near_next_obj_pose_2d':near_next_obj_pose_2d,
+
+      'far_grapper_dist':far_dist,
+      'far_T_base_end':far_T_base_end,
+      'far_obj_pose_2d':far_obj_pose_2d,
+      'far_next_grapper_dist':far_next_dist,
+      'far_next_T_base_end':far_next_T_base_end,
+      'far_next_obj_pose_2d':far_next_obj_pose_2d
+   }
+
+   return tmpl_dict
+
+
+def transform_pose_2d(R_dst_src: np.ndarray,
+                     src_pose_2d: list[float]) -> np.ndarray:
+   """将物体在 src 像素坐标系下的归一位姿转换到 dst 归一化坐标系下的位姿
+      Args:
+         R_dst_src (np.ndarray): 从 src 坐标系到 dst 坐标系的旋转矩阵 (3,3)
+         src_pose_2d (List[float]): 物体在 src 坐标系下的位姿 [nx, ny, theta], 其中 (nx, ny) 是归一化坐标, theta 是物体的朝向角, 单位为弧度
+      Returns:
+         (np.ndarray): 物体在 dst 坐标系下的位姿 [nx, ny, theta], 其中 (nx, ny) 是归一化坐标, theta 是物体的朝向角, 单位为弧度
+
+         将物体在原坐标系下的方向向量，转换为实际的射线再投影回dst的归一化坐标
+   """
+
+   # 为便于区分, 这里将三维空间中的位移用 xyz 表示, 将归一化坐标中的位移用 nx,ny 表示, 图像/归一化坐标中的旋转用 theta 表示
+
+   src_nx, src_ny, src_theta = src_pose_2d
+
+   step=0.01 #用于计算src坐标中物体朝向的向量步长
+   delta_src_x = src_nx+step * np.cos(src_theta)
+   delta_src_y = src_ny+step * np.sin(src_theta)
+
+   # 计算物体在 src 像素坐标系下的两个点的坐标，
+   src_pts=np.array([[src_nx, src_ny,1.0], 
+                     [delta_src_x, delta_src_y,1.0]],
+                     detype=np.float64).T#(3,2)
+
+   #src_pts在dst像素坐标系下的坐标
+   dst_pts=R_dst_src @ src_pts
+   #计算src_pts在dst归一化坐标系的坐标
+   dst_rays=dst_pts/(dst_pts[2:3, :] + 1e-6) #X/Z,Y/Z,Z/Z
+
+   dst_nx, dst_ny = dst_rays[0, 0], dst_rays[1, 0]
+   delta_dst_nx, delta_dst_ny = dst_rays[0, 1], dst_rays[1, 1]
+   dst_theta = np.arctan2(delta_dst_ny-dst_ny, delta_dst_nx-dst_nx)
+
+   return np.array([dst_nx, dst_ny, dst_theta],detype=np.float64)
+
+
+def compute_delta_end_pose(T_end_cam: np.ndarray,
+                           tmpl_dict: dict,
+                           cur_T_base_end: np.ndarray,
+                           cur_obj_pose_2d: list[float],
+                           z_step: float = 0.05,
+                           ) -> np.ndarray:
+   """
+   计算机械臂末端的位姿增量
+
+   Args:
+      T_end_cam (np.ndarray): 从相机到机械臂末端的射影变换矩阵
+      tmpl_dict (Dict): 模板数据字典
+      cur_T_base_end (np.ndarray): 当前机械臂末端位姿
+      cur_obj_pose_2d (List[float]): 当前物体在图像上的位姿 [nx, ny, theta], 其中 (nx, ny) 是归一化坐标, theta 是物体相对于相机的朝向角, 单位为弧度
+      z_step (float): 每次控制机械臂在 z 轴上的移动步长, 单位为米
+
+   Returns:
+      (np.ndarray): 机械臂末端的位姿增量
+   """
+
+   near_T_base_end = tmpl_dict['near_T_base_end']
+   near_obj_pose_2d = tmpl_dict['near_obj_pose_2d']
+   next_near_T_base_end = tmpl_dict['near_next_T_base_end']
+   next_near_obj_pose_2d = tmpl_dict['near_next_obj_pose_2d']
+
+   far_T_base_end = tmpl_dict['far_T_base_end']
+   far_obj_pose_2d = tmpl_dict['far_obj_pose_2d']
+   next_far_T_base_end = tmpl_dict['far_next_T_base_end']
+   next_far_obj_pose_2d = tmpl_dict['far_next_obj_pose_2d']
+
+   # 设置一个虚拟相机, 满足:
+   # 1) 虚拟相机的内参 K 为 3*3 的单位矩阵, 即虚拟相机坐标系下的二维坐标为归一化坐标
+   # 2) 虚拟相机与末端的坐标轴同向 T_end_virtual[0:3, 3] = T_end_cam[0:3, 3]
+   # 3) 虚拟相机与原始相机的原点重合  R_virtual_cam = T_end_cam[:3, :3]
+   
+
+   T_end_virtual = np.eye(4)
+   T_end_virtual[0:3, :3] = T_end_cam[0:3, :3]
+   R_virtual_cam = T_end_cam[:3, :3]
+
+   #末端模板位姿时，计算虚拟相机在基座坐标系下的位姿
+   near_T_base_virtual = near_T_base_end @ T_end_virtual
+   near_next_T_base_virtual = next_near_T_base_end @ T_end_virtual
+   far_T_base_virtual = far_T_base_end @ T_end_virtual
+   far_next_T_base_virtual = next_far_T_base_end @ T_end_virtual
+   cur_T_base_virtual = cur_T_base_end @ T_end_virtual
+
+   #将物体位姿转换到虚拟相机归一化坐标系下
+   near_obj_pose_virtual = transform_pose_2d(R_virtual_cam , near_obj_pose_2d)
+   next_near_obj_pose_virtual = transform_pose_2d(R_virtual_cam , next_near_obj_pose_2d)
+   far_obj_pose_virtual = transform_pose_2d(R_virtual_cam , far_obj_pose_2d)
+   next_far_obj_pose_virtual = transform_pose_2d(R_virtual_cam , next_far_obj_pose_2d)
+   cur_obj_pose_virtual = transform_pose_2d(R_virtual_cam , cur_obj_pose_2d)
+
+
+   #分别计算near和far距离下物理平移与归一化坐标增量的比值
+   near_z=near_T_base_virtual[2,3]
+   near_delta_xy=inv_tf(near_T_base_virtual)@near_next_T_base_virtual[:3,2]
+   near_delta_uv=next_near_obj_pose_virtual-near_obj_pose_virtual
+   near_ratio=np.linalg.norm(near_delta_xy)/(np.linalg.norm(near_delta_uv)+1e-6)
+
+   far_z=far_T_base_virtual[2,3]
+   far_delta_xy=inv_tf(far_T_base_virtual)@far_next_T_base_virtual[:3,2]
+   far_delta_uv=next_far_obj_pose_virtual-far_obj_pose_virtual
+   far_ratio=np.linalg.norm(far_delta_xy)/(np.linalg.norm(far_delta_uv)+1e-6)
+
+   #计算虚拟相机从near模板位姿到cur位姿的旋转增量
+   delta_theta=cur_obj_pose_virtual[2]-near_obj_pose_virtual[2]
+   if delta_theta>np.pi:
+      delta_theta-=2*np.pi
+   if delta_theta<-np.pi:
+      delta_theta+=2*np.pi
+
+   #计算虚拟相机从near模板位姿到cur位姿的旋转矩阵
+   delta_R=transforms3d.axangles.axangle2mat([0,0,1], delta_theta)
+
+   # 先旋转物体位姿，计算仅旋转后的物体位姿在当前的虚拟归一化坐标系下的位姿
+   R_2d=delta_R.T[:2,:2]
+   rotated_cur_obj_pose_virtual=R_2d @ cur_obj_pose_virtual
+
+   #再平移物体位姿，并计算虚拟位姿的平移增量
+   cur_z=cur_T_base_virtual[2,3]
+   alpha=(cur_z-near_z)/(far_z-near_z)
+   target_ratio=near_ratio+alpha*(far_ratio-near_ratio)
+   targrt_uv= near_obj_pose_virtual[:2]+target_ratio*(far_obj_pose_virtual[:2]-cur_obj_pose_virtual[:2])
+   #物体位姿旋转到与目标位姿一致后，与目标位姿在归一化坐标系中的平移向量，由目标位姿指向当前位姿
+   #由于相机的移动方向与物体在视野中的方向相反，故无需变号
+   delta_uv=rotated_cur_obj_pose_virtual[:2]-targrt_uv
+   delta_xy=target_ratio @ delta_uv
+
+   diff_z=cur_z-near_z
+   if abs(diff_z)>z_step:
+      delta_z=np.sign(diff_z)*z_step
+   else:
+      delta_z=diff_z
+
+   # delta_z = 0   # 调试: 先不控制 z 轴移动, 只控制 x,y 平移和旋转
+   delta_xyz = np.array([delta_xy[0], delta_xy[1], delta_z])
+
+   #计算最终的虚拟相机位姿增量
+   #旋转矩阵
+   delta_T0=np.eye(4)
+   delta_T0[:3,:3]=delta_R
+   #平移矩阵
+   delta_T1=np.eye(4)
+   delta_T1[0:3,3]=[delta_xyz[0],delta_xyz[1],diff_z]
+
+   delta_T_virtual=delta_T0 @ delta_T1
+
+   #将虚拟相机位姿增量转换到末端坐标系下
+   delta_T_end = T_end_virtual@ delta_T_virtual @ inv_tf(T_end_virtual)
+
+   return delta_T_end
+
+
+
+
+
+
 
 
 
