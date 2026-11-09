@@ -1,14 +1,16 @@
 """通用工具函数和常量"""
 
-import atexit
+import atexit  # noqa: I001
 import dataclasses
 import json
 import logging
+import os
 import select
 import sys
 import termios
 import tty
 from typing import Optional
+import transforms3d
 
 import numpy as np
 
@@ -123,7 +125,69 @@ def read_camera_params(json_file_path: str) -> tuple[list[float], list[float],Op
 
     return intrinsic, distortion, depth_scale
 
-  
+def read_calib_handeye(json_file_path: str) -> tuple[np.ndarray, bool]:
+    """
+    读取手眼标定矩阵    
+    Args:
+        json_file_path( str ): JSON 文件路径
+    Returns:
+        (Tuple[np.ndarray, bool]): 手眼标定矩阵,是否为眼在手
+    """
+
+    if os.path.exists(json_file_path) is False:
+        Logger.error(f'{Common_data.RED}Hand-eye calibration file not found: {json_file_path}{Common_data.RESET}')
+        return None, None
+    # end if
+
+    with open(json_file_path, 'r') as f:
+        calib_dict = json.load(f)
+    # end with
+
+    if 'T_armend_cam' in calib_dict:
+        q = np.array(calib_dict['T_armend_cam']["q"], dtype=np.float32)  # [qw,qx,qy,qz]
+        t = np.array(calib_dict['T_armend_cam']["t"], dtype=np.float32)
+        eye_in_hand = True
+    elif 'T_armbase_cam' in calib_dict:
+        q = np.array(calib_dict['T_armbase_cam']["q"], dtype=np.float32)  # [qw,qx,qy,qz]
+        t = np.array(calib_dict['T_armbase_cam']["t"], dtype=np.float32)
+        eye_in_hand = False
+    else:
+        Logger.error("JSON file does not contain valid hand-eye calibration data.")
+        return None, None
+    # end if
+
+    T = np.eye(4, dtype=np.float32)
+    T[:3, :3] = transforms3d.quaternions.quat2mat(q)
+    T[:3, 3] = t
+
+    if eye_in_hand:
+        Logger.info(f"{Common_data.BLUE}T_end_cam: \n{Common_data.BLUE}{T}{Common_data.RESET}")
+    else:
+        Logger.info(f"{Common_data.BLUE}T_base_cam: \n{Common_data.BLUE}{T}{Common_data.RESET}")
+    # end if
+
+    return T, eye_in_hand
+
+
+
+def wait_key(debug: bool) -> bool:
+    """
+    当在 debug 模式下会等待按键, 如果输入 'q' 则返回 False, 否则返回 True, 用于控制是否继续执行程序
+    Args:
+        debug (bool): 是否启用了调试模式
+    Returns:
+        (bool): 是否执行下一步
+    """
+    if debug:
+        key = input('press, q: break, other: next step \n')
+        logging.info(f'pressed: [{key}]')
+        if key == 'q':
+            return False
+        # end if
+    # end if
+
+    return True
+
 class KeyboardReader:
     """
     键盘输入读取类, 用于非阻塞读取单个按键

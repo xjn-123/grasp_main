@@ -209,7 +209,7 @@ class CollisionDetector:
 
         return contour
 
-    def compute_depth_diff(self, real_depth_img: np.ndarray, proj_depth_img: np.ndarray, proj_mask_img: np.ndarray, proj_contour: np.ndarray, mask_value: int, max_depth_diff: float) -> Tuple[float, float]:
+    def compute_depth_diff(self, real_depth_img: np.ndarray, proj_depth_img: np.ndarray, proj_mask_img: np.ndarray, proj_contour: np.ndarray, mask_value: int, max_depth_diff: float) -> tuple[float, float]:
         """
         计算真实深度图与投影深度图之间的深度差
         Args:
