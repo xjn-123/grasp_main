@@ -745,6 +745,99 @@ class TagMatcher3D:
 
         return result_list
 
+    def track(self,
+            bgr_img: np.ndarray,
+            depth_img: np.ndarray,
+            init_T_cam_tag: np.ndarray,
+            debug_level: int = 0) -> tuple[np.ndarray, str]:
+        """
+            跟踪: 跟踪上一帧的 AprilTag 实例, 并估计其位姿,
+            依据上一帧的标签裁剪下一帧的图像，保留标签部分图像，提高计算速度
+            Args:
+                bgr_img (np.ndarray): 彩色图像, 存在畸变
+                depth_img (np.ndarray): 深度图像
+                init_T_cam_tag (np.ndarray): 上一帧的标签位姿, 4*4
+                debug_level (int): 调试等级( 0: 不保存任何结果; 1: 保存输入信息; 2: 保存分割结果和位姿估计结果; )
+            Returns:
+                    (Tuple[np.ndarray, str]): 跟踪结果, 4*4 的变换矩阵, 和返回的消息
+        """ 
+        result_dir = f"{self.debug_dir}/track"
+        
+        # 创建保存跟踪结果的目录
+        if self.debug_dir is not None and not os.path.exists(result_dir):
+            os.makedirs(result_dir, exist_ok=True)
+            Logger.info(f"{Common_data.GREEN}track results will be saved to: {result_dir}{Common_data.RESET}")
+        # end if
+
+        corners3d = np.zeros((4, 3), dtype=np.float32)
+        half_size = self.tag_size / 2
+        corners3d[0] = np.array([-half_size, -half_size, 0], dtype=np.float32)
+        corners3d[1] = np.array([half_size, -half_size, 0], dtype=np.float32)
+        corners3d[2] = np.array([half_size, half_size, 0], dtype=np.float32)
+        corners3d[3] = np.array([-half_size, half_size, 0], dtype=np.float32)
+
+        corners3d = corners3d @ init_T_cam_tag[:3, :3].T + init_T_cam_tag[:3, 3]  # 将标签坐标系下的角点转换到相机坐标系
+
+        # 计算角点在图像中的投影位置
+        proj_corners2d = np.zeros((4, 2), dtype=np.float32)
+        for i in range(4):
+            x, y, z = corners3d[i]
+            u = self.intrinsic[0] * (x / z) + self.intrinsic[2]
+            v = self.intrinsic[1] * (y / z) + self.intrinsic[3]
+            proj_corners2d[i] = [u, v]
+        # end for
+
+        # 计算投影的最小外接矩形( 用于后续位姿细化的初始掩码 )
+        min_x, min_y = np.min(proj_corners2d, axis=0)
+        max_x, max_y = np.max(proj_corners2d, axis=0)
+
+        # 放大矩形以包含更多的像素
+        rect_w = (max_x - min_x) * 2.0
+        rect_h = (max_y - min_y) * 2.0
+        center_x = (min_x + max_x) / 2
+        center_y = (min_y + max_y) / 2
+        min_x = max(0, center_x - rect_w / 2)
+        max_x = min(bgr_img.shape[1] - 1, center_x + rect_w / 2)
+        min_y = max(0, center_y - rect_h / 2)
+        max_y = min(bgr_img.shape[0] - 1, center_y + rect_h / 2)
+
+        # 畸变矫正
+        un_img = self.undistorter.undistort_img(bgr_img)
+
+        # 根据投影的最小外接矩形裁剪图像
+        crop_bgr_img = un_img[int(min_y):int(max_y), int(min_x):int(max_x)]
+        tag_list = self.detector.detect(crop_bgr_img, -1)
+
+        if (len(tag_list) == 0 or debug_level >= 1) and os.path.exists(result_dir):
+            vis_img = un_img.copy()
+            cv2.rectangle(vis_img, (int(min_x), int(min_y)), (int(max_x), int(max_y)),
+                            color=(0, 0, 255), thickness=1)
+            cv2.imwrite(f"{result_dir}/proj_area.png", vis_img)
+        # end if
+
+        if len(tag_list) == 0:
+            msg = "no tag detected in cropped image"
+            return None, msg
+        # end if
+
+        # 恢复标签坐标到原图坐标系
+        tag = tag_list[0]
+        tag.center += np.array([min_x, min_y])
+        tag.corners += np.array([min_x, min_y])
+
+        # 定位
+        corners3d = compute_tag_corners_3d(tag, depth_img, self.intrinsic, self.depth_scale)
+        T_cam_tag = compute_tag_pose_3d(corners3d)
+
+        msg = "track successful"
+        return T_cam_tag
+    # end def track
+# end class TagMatcher3D
+    
+
+
+
+
 
         
 
