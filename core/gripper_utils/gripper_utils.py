@@ -449,8 +449,8 @@ def com_axis_aligned_pose(T_base_end: np.ndarray,
     angle = np.arccos(cosine)
 
     Logger.info(f'compute_axis_aligned_pose, 目标方向: {Common_data.GREEN}{target_dir}{Common_data.RESET}, '
-                 f'当前方向: {Common_data.GREEN}{current_dir}{Common_data.RESET}, '
-                 f'调整角度: {Common_data.GREEN}{angle * 180.0 / np.pi:.2f}{Common_data.RESET} deg')
+                f'当前方向: {Common_data.GREEN}{current_dir}{Common_data.RESET}, '
+                f'调整角度: {Common_data.GREEN}{angle * 180.0 / np.pi:.2f}{Common_data.RESET} deg')
 
     if angle > np.deg2rad(th_angle):  # 夹角过大
         Logger.warning(f'{Common_data.RED}调整角度 > {th_angle} deg')

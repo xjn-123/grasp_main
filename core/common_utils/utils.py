@@ -1,7 +1,7 @@
 """通用工具函数和常量"""
 
 import atexit  # noqa: I001
-import dataclasses
+from dataclasses import dataclass
 import json
 import logging
 import os
@@ -15,7 +15,7 @@ import transforms3d
 import numpy as np
 
 Logger = logging.getLogger(__name__)
-@dataclasses
+@dataclass
 class Common_data:
     # 彩色打印定义
     RED = '\033[91m'
