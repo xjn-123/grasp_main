@@ -217,7 +217,7 @@ def compute_discrete_locate_error(expected_T_cam_model: np.ndarray,
         计算定位的期望值与实际值的误差, 支持对称工件（比如方形、正多边形，转 90° 也是同一个工件），
         遍历所有对称姿态，选出旋转误差最小的那一组，输出位置误差 (mm)、角度误差 (°)
         Args:
-            expected_T_cam_model (np.ndarray): 期望的物体到相机的变换矩阵, 4*4
+            expected_T_cam_model (np.ndarray): 期望的物体到相机的变换矩阵, 4*4,也就是抓取模板的物体到相机位姿
             actual_T_cam_model (np.ndarray): 实际的物体到相机的变换矩阵, 4*4
             sym_tfs (np.ndarray): 对称变换矩阵数组, N * 4*4, 如果物体具有离散对称性, 则在计算误差时应该考虑所有的对称变换, 取误差最小的那个作为最终误差. 
                 如果没有对称变换, 则传入 None 或者空数组即可
@@ -252,8 +252,8 @@ def compute_discrete_locate_error(expected_T_cam_model: np.ndarray,
     return pos_err,rot_err
 
 def compute_projective_transformation(src_K: np.ndarray,
-                                      src_img_size: tuple[int, int],
-                                      R_dst_src: np.ndarray) -> tuple[np.ndarray, tuple[int, int], np.ndarray]:
+                                    src_img_size: tuple[int, int],
+                                    R_dst_src: np.ndarray) -> tuple[np.ndarray, tuple[int, int], np.ndarray]:
     """
     已知 src 相机内参和 src 图像尺寸, 以及从 src 相机坐标系到 dst 相机坐标系的旋转矩阵,
     计算从 src 图像到 dst 图像的射影变换矩阵 H_dst_src, 以及 dst 相机内参和 dst 图像尺寸, 使得 src 图像内容尽量完整地投影到 dst 图像上
@@ -317,8 +317,8 @@ def compute_projective_transformation(src_K: np.ndarray,
 # end def compute_projective_transformation
 
 def compute_tag_mask(tag: apriltag_helper.Tag2D,
-                     mask_img: np.ndarray,
-                     ex_ratio: float = 0.3) -> None:
+                    mask_img: np.ndarray,
+                    ex_ratio: float = 0.3) -> None:
     """
     根据标签顶点计算掩码
     Args:
@@ -547,7 +547,7 @@ class TagMatcher2D:
 
         pose_2d: tuple[float, float, float] = (0.0, 0.0, 0.0)
         """标签的平面位姿 [tx, ty, theta], 其中 tx 和 ty 是标签中心点相对于相机归一化坐标系原点的平面坐标, 
-           theta 是标签坐标系相对于相机归一化坐标系的旋转角( 单位: rad )"""
+        theta 是标签坐标系相对于相机归一化坐标系的旋转角( 单位: rad )"""
 
     def __init__(self, config: Config):
         """
