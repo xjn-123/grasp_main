@@ -119,14 +119,14 @@ if __name__ == '__main__':
 
     print()
     print(f'use keyboard to control: \n{Common_data.BULE}'
-          f'  q: 退出程序\n'
-          f'  <: 缩小夹爪距离\n'
-          f'  >: 放大夹爪距离\n'
-          f'  a: 使末端的 z 轴方向与基座的 -z 轴平行\n'
-          f'  c: 使相机的 z 轴方向与基座的 -z 轴平行\n'
-          f'  g: 保存抓取时的状态\n'
-          f'  r: 保存准备阶段的状态\n'
-          f'{Common_data.RESET}')
+            f'  q: 退出程序\n'
+            f'  <: 缩小夹爪距离\n'
+            f'  >: 放大夹爪距离\n'
+            f'  a: 使末端的 z 轴方向与基座的 -z 轴平行\n'
+            f'  c: 使相机的 z 轴方向与基座的 -z 轴平行\n'
+            f'  g: 保存抓取时的状态\n'
+            f'  r: 保存准备阶段的状态\n'
+            f'{Common_data.RESET}')
 
     while rclpy.ok():
 
