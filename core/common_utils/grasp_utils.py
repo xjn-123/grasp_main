@@ -44,6 +44,7 @@ class Grasp_computer:
         self.axis=result[1]
         self.offest=result[2]
         self.scale=result[3]
+        self.offest*=self.scale#化为米制单位
         self.discrete_martix = result[4]
 
 
@@ -284,16 +285,67 @@ class Grasp_computer:
                         [ v[2],     0, -v[0]],
                         [-v[1],  v[0],     0]], dtype=float)
 
-    def 
-    
+    def rotmated_ref_pose(self,
+                        axis: np.ndarray=self.axis,
+                        offest: np.ndarray=self.offset,
+                        discrete_martix_list: np.ndarray = self.discrete_martix_list,
+                        ready_T_cam_model: np.ndarray = None,
+                        cur_T_cam_model: np.ndarray = None,
+                        ):
+
+        '''对于连续对称性，采用连续旋转位姿计算目标矩阵，并于离散对称矩阵组合反回完整的对称矩阵'''
+
+        if axis.shape[0] != offest.shape[0]:
+            raise ValueError('axis and offset must have the same shape')
+
+        compute_T_cam_model = []
+        for discrete_martix in discrete_martix_list:
+            for i in range(axis.shape[0]):
+
+                ready_T_cam_model= ready_T_cam_model@discrete_martix  #先你离散对称处理模板位姿
+
+                axis_n=axis[i]
+                offset_n=offest[i]
+
+                k = np.asarray(axis_n, float)
+                k = k / np.linalg.norm(k)
+
+                R = np.asarray(cur_T_cam_model[:3, :3], float)
+                t = np.asarray(cur_T_cam_model[:3, 3], float)
+
+                M = R.T @ np.asarray(ready_T_cam_model[:3, :3], float)
+
+                a = np.trace(M) - k @ M @ k
+                b = -np.trace(self.skew(k) @ M)
+
+                if a * a + b * b < 1e-18:
+                    alpha = 0.0                 # 目标函数对 α 恒定（完全对称），任取
+                else:
+                    alpha = np.arctan2(b, a)
+                # end if
+
+                Rs = transforms3d.axangles.axangle2mat(k, alpha)
+                t_s = offset_n - Rs @ offset_n
+
+                T = np.eye(4)
+                T[:3, :3] = R @ Rs
+                T[:3, 3] = R @ t_s + t
+
+                compute_T_cam_model.append(T)
+
+        return np.array(compute_T_cam_model)
 
     def compute_continuous_ready_pose(self,
                                         T_cam_model: np.ndarray,
-                                        ready_T_cam_model: np.ndarray,
-                                        ready_T_base_end:np.ndarray,
+                                        ready_T_cam_model: np.ndarray,                                  
                                         cur_T_base_end: np.ndarray,
-                                        cur_T_cam_model: np.ndarray) -> tuple[float, float]:
-        pass
+                                        cur_T_cam_model: np.ndarray,
+                                        axis: np.ndarray=self.axis,
+                                        offest: np.ndarray=self.offset,
+                                        discrete_martix_list: np.ndarray =self.discrete_martix_list,
+                                        ) -> tuple[np.ndarray, float]:
+                
+        '''用连续旋转获得末端目标位姿'''
     
 
 
