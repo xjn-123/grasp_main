@@ -19,8 +19,8 @@ Logger = logging.getLogger(__name__)
 class Grasp_computer:
 
     def __init__(self,
-                json_file_path,
-                tmpl_dir,
+                json_file_path:str,
+                tmpl_dir:str,
                 rotation_step: float = -1.0,
                 ro_th_angle_z:float=45.0,
                 tmpl_idx:int=-1) -> None:
@@ -46,11 +46,13 @@ class Grasp_computer:
         self.scale=result[3]
         self.offest*=self.scale#化为米制单位
         self.discrete_martix = result[4]
+        #读取抓取模板数据
+        self.grasp_tmpl_dict = self.read_tmpl_grasp(self.tmpl_dir)
 
 
     def gen_discrete_symmetric_linalg(self, 
-                                    json_file_path: str,
-                                    rotation_step: float = 1) -> tuple[np.ndarray,np.ndarray,np.ndarray,float,np.ndarray]:
+                                    json_file_path: str=None,
+                                    rotation_step: float=None ) -> tuple[np.ndarray,np.ndarray,np.ndarray,float,np.ndarray]:
         """
         读取 CAD 模型的对称性信息,生成对称变换矩阵列表，支持离散旋转对称和连续旋转对称离散化两种
         json_file_path (str): json 文件路径
@@ -82,6 +84,8 @@ class Grasp_computer:
         Returns:
             (np.ndarray): 对称变换矩阵 N*4*4, 如果失败则返回 None
         """
+        json_file_path = self.json_file_path
+        rotation_step=self.rotation_step
 
         try:
             with open(json_file_path, 'r') as f:
@@ -157,13 +161,182 @@ class Grasp_computer:
 
         return sym_tfs,axis_list,offest_list,scale,discrete_tf_list
 
+    def read_tmpl_grasp(tmpl_dir: str) -> dict:
+        """
+        读取抓取模板数据
+        Args:
+            tmpl_dir (str): 抓取模板文件夹路径
+        Returns:
+            (Dict): 抓取模板数据字典
+        """
+
+        # 1. 读取相机处于检测位置时的机械臂状态
+        detect_path = os.path.join(tmpl_dir, 'detect.json')
+        if not os.path.exists(detect_path):
+            Logger.error(f'file not found: {detect_path}')
+            return None
+        # end if
+
+        with open(detect_path, 'r') as f:
+            detect_dict = json.load(f)
+        # end with
+        detect_T_base_end = np.array(detect_dict['T_base_end'], dtype=np.float32)
+        detect_joints = detect_dict["joints"]
+        detect_gripper_dist = detect_dict["gripper_dist"]
+        Logger.info(f'arm detect_joints: {detect_joints}')
+        Logger.info(f'arm detect_gripper_dist: {detect_gripper_dist}')
+
+        # 2. 读取相机处于放置位置时的机械臂状态
+        place_path = os.path.join(tmpl_dir, 'place.json')
+        if not os.path.exists(place_path):
+            Logger.error(f'file not found: {place_path}')
+            return None
+        # end if
+
+        with open(place_path, 'r') as f:
+            place_dict = json.load(f)
+        # end with
+        place_T_base_end = np.array(place_dict['T_base_end'], dtype=np.float32)
+        place_joints = place_dict["joints"]
+        place_gripper_dist = place_dict["gripper_dist"]
+        Logger.info(f'arm place_joints: {place_joints}')
+        Logger.info(f'arm place_gripper_dist: {place_gripper_dist}')
+
+        # 3. 读取抓取模板位姿
+        tmpl_state_list = []
+        tmpl_cnt = 0
+        while True:
+            tmpl_dir_i = os.path.join(tmpl_dir, f'{tmpl_cnt}')
+            if not os.path.exists(tmpl_dir_i):
+                break
+            # end if
+            grasp_path = os.path.join(tmpl_dir_i, 'grasp.json')
+            ready_path = os.path.join(tmpl_dir_i, 'ready.json')
+            if not os.path.exists(grasp_path) or not os.path.exists(ready_path):
+                Logger.warning(f'file not found: {grasp_path} or {ready_path}')
+                break
+            # end if
+
+            state_dict = {}
+
+            with open(grasp_path, 'r') as f:
+                grasp_data = json.load(f)
+            # end with
+            state_dict['grasp_T_base_end'] = np.array(grasp_data['T_base_end'], dtype=np.float32)
+            state_dict['grasp_gripper_dist'] = grasp_data['gripper_dist']
+
+            with open(ready_path, 'r') as f:
+                ready_data = json.load(f)
+            # end with
+            state_dict['ready_T_base_end'] = np.array(ready_data['T_base_end'], dtype=np.float32)
+            state_dict['ready_T_cam_model'] = np.array(ready_data['T_cam_model'], dtype=np.float32)
+            state_dict['ready_gripper_dist'] = ready_data['gripper_dist']
+
+            tmpl_state_list.append(state_dict)
+            tmpl_cnt += 1
+        # end while
+
+        if len(tmpl_state_list) == 0:
+            Logger.error(f'no valid grasp tmpl found in dir: {tmpl_dir}')
+            return None
+        # end if
+
+        tmpl_dict = {
+            'detect_T_base_end': detect_T_base_end,
+            'detect_joints': detect_joints,
+            'detect_gripper_dist': detect_gripper_dist,
+
+            'place_T_base_end': place_T_base_end,
+            'place_joints': place_joints,
+            'place_gripper_dist': place_gripper_dist,
+
+            'tmpl_state_list': tmpl_state_list
+        }
+
+        Logger.info(f'grasp tmpl num: {len(tmpl_state_list)}')
+        print()
+
+        return tmpl_dict
+
+    # end def compute_ready_pose
+    def skew(self,v):
+        """3 维向量 → 反对称矩阵，满足 skew(a) @ b == np.cross(a, b)"""
+        return np.array([[    0, -v[2],  v[1]],
+                        [ v[2],     0, -v[0]],
+                        [-v[1],  v[0],     0]], dtype=float)
+
+    def rotmated_ref_pose(self,
+                        axis: np.ndarray,
+                        offest: np.ndarray,
+                        discrete_martix_list: np.ndarray ,
+                        ready_T_cam_model: np.ndarray,
+                        cur_T_cam_model: np.ndarray ,
+                        ):
+
+        '''对于连续对称性，采用连续旋转位姿计算目标矩阵，并于离散对称矩阵组合反回完整的对称矩阵
+            args:
+            axis (np.ndarray): 旋转轴
+            offest (np.ndarray): 旋转轴偏移
+            discrete_martix_list (np.ndarray): 离散对称矩阵列表
+            ready_T_cam_model (np.ndarray): 模板到相机坐标系的变换矩阵
+            cur_T_cam_model (np.ndarray): 当前相机到模板坐标系的变换矩阵
+
+            Returns:
+            np.ndarray: 旋转后的模板到相机坐标系的变换矩阵
+
+            Raises:
+            ValueError: axis and offset must have the same shape
+        '''
+
+
+        if axis.shape[0] != offest.shape[0]:
+            raise ValueError('axis and offset must have the same shape')
+
+        rotmated_sym_tfs = []
+        for discrete_martix in discrete_martix_list:
+            for i in range(axis.shape[0]):
+
+                ready_T_cam_model= ready_T_cam_model@discrete_martix  #先你离散对称处理模板位姿
+
+                axis_n=axis[i]
+                offset_n=offest[i]
+
+                k = np.asarray(axis_n, float)
+                k = k / np.linalg.norm(k)
+
+                R = np.asarray(cur_T_cam_model[:3, :3], float)
+                t = np.asarray(cur_T_cam_model[:3, 3], float)
+
+                M = R.T @ np.asarray(ready_T_cam_model[:3, :3], float)
+
+                a = np.trace(M) - k @ M @ k
+                b = -np.trace(self.skew(k) @ M)
+
+                if a * a + b * b < 1e-18:
+                    alpha = 0.0                 # 目标函数对 α 恒定（完全对称），任取
+                else:
+                    alpha = np.arctan2(b, a)
+                # end if
+
+                Rs = transforms3d.axangles.axangle2mat(k, alpha)
+                t_s = offset_n - Rs @ offset_n
+
+                T = np.eye(4)
+                T[:3, :3] = R @ Rs
+                T[:3, 3] = R @ t_s + t
+
+                rotmated_sym_tfs.append(T)
+
+        return np.array(rotmated_sym_tfs)
+
     def compute_tmpl_ready_pose(self,
                                 sym_tfs: np.ndarray,
                                 T_end_cam: np.ndarray,
                                 ready_T_base_end: np.ndarray,
                                 ready_T_cam_model: np.ndarray,
                                 cur_T_base_end: np.ndarray,
-                                cur_T_cam_model: np.ndarray) -> tuple[np.ndarray, float]:
+                                cur_T_cam_model: np.ndarray,
+                               ) -> tuple[np.ndarray, float]:
         """
             对于特定的抓取模板,基于离散的对称旋转矩阵，计算机械臂合理的ready位姿,使得机械臂从当前位姿移动到设定位姿时, cur_T_cam_model = ready_T_cam_model    
             Args:
@@ -216,11 +389,10 @@ class Grasp_computer:
         target_T_base_end=target_pose[min_idx]
         delta_angle=delta_angles[min_idx]
 
+
         return target_T_base_end, delta_angle
     
     def compute_ready_pose(self,
-                            tmpl_state_list: list[dict],
-                            sym_tfs: np.ndarray,
                             T_end_cam: np.ndarray,
                             cur_T_base_end: np.ndarray,
                             cur_T_cam_model: np.ndarray,
@@ -243,109 +415,87 @@ class Grasp_computer:
     
         # 计算最佳模板
         if tmpl_idx >= 0:  # 已经指定了模板索引
-            grasp_tmpl = tmpl_state_list[tmpl_idx]
+            grasp_tmpl =self.tmpl_state_list[tmpl_idx]
     
             ready_T_base_end = grasp_tmpl['ready_T_base_end']
             ready_T_cam_model = grasp_tmpl['ready_T_cam_model']
-            target_T_base_end, _ = self.compute_tmpl_ready_pose(self,sym_tfs,
-                                                            T_end_cam,
-                                                            ready_T_base_end,
-                                                            ready_T_cam_model,
-                                                            cur_T_base_end,
-                                                            cur_T_cam_model)
-            best_target_T_base_end = target_T_base_end
-            best_tmpl_idx = tmpl_idx
+
+            if self.rotation_step >0:
+                target_T_base_end, _ = self.compute_tmpl_ready_pose(self,self.sym_tfs,
+                                                                T_end_cam,
+                                                                ready_T_base_end,
+                                                                ready_T_cam_model,
+                                                                cur_T_base_end,
+                                                                cur_T_cam_model)
+                best_target_T_base_end = target_T_base_end
+                best_tmpl_idx = tmpl_idx
+            else:
+                #为指定旋转步长，连续化处理
+                compute_sym_tfs= self.rotmated_ref_pose(self,
+                                                        self.axis,
+                                                        self.offest,
+                                                        self.discrete_martix,
+                                                        ready_T_cam_model,
+                                                        cur_T_cam_model)
+                target_T_base_end, _ = self.compute_tmpl_ready_pose(self,compute_sym_tfs,
+                                                                                T_end_cam,
+                                                                                ready_T_base_end,
+                                                                                ready_T_cam_model,
+                                                                                cur_T_base_end,
+                                                                                cur_T_cam_model)
+                best_target_T_base_end = target_T_base_end
+                best_tmpl_idx = tmpl_idx
+         
         else:  # 未指定模板索引, 计算最佳模板
-            tmpl_num = len(tmpl_state_list)
+            tmpl_num = len(self.tmpl_state_list)
             min_delta_angle = 1000.0
             for i in range(tmpl_num):
-                grasp_tmpl = tmpl_state_list[i]
+                grasp_tmpl = self.tmpl_state_list[i]
     
                 ready_T_base_end = grasp_tmpl['ready_T_base_end']
                 ready_T_cam_model = grasp_tmpl['ready_T_cam_model']
-                target_T_base_end, delta_angle = self.compute_tmpl_ready_pose(sym_tfs,
-                                                                            T_end_cam,
-                                                                            ready_T_base_end,
-                                                                            ready_T_cam_model,
-                                                                            cur_T_base_end,
-                                                                            cur_T_cam_model)
-                if delta_angle < min_delta_angle:
-                    min_delta_angle = delta_angle
-                    best_tmpl_idx = i
+        
+                if self.rotation_step >0:
+                    target_T_base_end, _ = self.compute_tmpl_ready_pose(self,self.sym_tfs,
+                                                                    T_end_cam,
+                                                                    ready_T_base_end,
+                                                                    ready_T_cam_model,
+                                                                    cur_T_base_end,
+                                                                    cur_T_cam_model)
                     best_target_T_base_end = target_T_base_end
+                    best_tmpl_idx = tmpl_idx
+                else:
+                    #为指定旋转步长，连续化处理
+                    compute_sym_tfs= self.rotmated_ref_pose(self,
+                                                            self.axis,
+                                                            self.offest,
+                                                            self.discrete_martix,
+                                                            ready_T_cam_model,
+                                                            cur_T_cam_model)
+                    target_T_base_end, delta_angle = self.compute_tmpl_ready_pose(self,compute_sym_tfs,
+                                                                                    T_end_cam,
+                                                                                    ready_T_base_end,
+                                                                                    ready_T_cam_model,
+                                                                                    cur_T_base_end,
+                                                                                    cur_T_cam_model)
+                    best_target_T_base_end = target_T_base_end
+
+                    best_tmpl_idx = tmpl_idx
+                    if delta_angle < min_delta_angle:
+                        min_delta_angle = delta_angle
+                        best_tmpl_idx = i
+                        best_target_T_base_end = target_T_base_end
                 # end if
             # end for
         # end if
     
         return best_target_T_base_end, best_tmpl_idx
-    # end def compute_ready_pose
-    def skew(self,v):
-        """3 维向量 → 反对称矩阵，满足 skew(a) @ b == np.cross(a, b)"""
-        return np.array([[    0, -v[2],  v[1]],
-                        [ v[2],     0, -v[0]],
-                        [-v[1],  v[0],     0]], dtype=float)
+    
 
-    def rotmated_ref_pose(self,
-                        axis: np.ndarray=self.axis,
-                        offest: np.ndarray=self.offset,
-                        discrete_martix_list: np.ndarray = self.discrete_martix_list,
-                        ready_T_cam_model: np.ndarray = None,
-                        cur_T_cam_model: np.ndarray = None,
-                        ):
+ 
 
-        '''对于连续对称性，采用连续旋转位姿计算目标矩阵，并于离散对称矩阵组合反回完整的对称矩阵'''
 
-        if axis.shape[0] != offest.shape[0]:
-            raise ValueError('axis and offset must have the same shape')
 
-        compute_T_cam_model = []
-        for discrete_martix in discrete_martix_list:
-            for i in range(axis.shape[0]):
-
-                ready_T_cam_model= ready_T_cam_model@discrete_martix  #先你离散对称处理模板位姿
-
-                axis_n=axis[i]
-                offset_n=offest[i]
-
-                k = np.asarray(axis_n, float)
-                k = k / np.linalg.norm(k)
-
-                R = np.asarray(cur_T_cam_model[:3, :3], float)
-                t = np.asarray(cur_T_cam_model[:3, 3], float)
-
-                M = R.T @ np.asarray(ready_T_cam_model[:3, :3], float)
-
-                a = np.trace(M) - k @ M @ k
-                b = -np.trace(self.skew(k) @ M)
-
-                if a * a + b * b < 1e-18:
-                    alpha = 0.0                 # 目标函数对 α 恒定（完全对称），任取
-                else:
-                    alpha = np.arctan2(b, a)
-                # end if
-
-                Rs = transforms3d.axangles.axangle2mat(k, alpha)
-                t_s = offset_n - Rs @ offset_n
-
-                T = np.eye(4)
-                T[:3, :3] = R @ Rs
-                T[:3, 3] = R @ t_s + t
-
-                compute_T_cam_model.append(T)
-
-        return np.array(compute_T_cam_model)
-
-    def compute_continuous_ready_pose(self,
-                                        T_cam_model: np.ndarray,
-                                        ready_T_cam_model: np.ndarray,                                  
-                                        cur_T_base_end: np.ndarray,
-                                        cur_T_cam_model: np.ndarray,
-                                        axis: np.ndarray=self.axis,
-                                        offest: np.ndarray=self.offset,
-                                        discrete_martix_list: np.ndarray =self.discrete_martix_list,
-                                        ) -> tuple[np.ndarray, float]:
-                
-        '''用连续旋转获得末端目标位姿'''
     
 
 
