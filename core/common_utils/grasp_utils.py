@@ -11,7 +11,7 @@ import transforms3d
 root_dir = os.path.normpath(f"{os.path.dirname(os.path.realpath(__file__))}/../../../")# 导入本工程的模块  \
 sys.path.append(root_dir)
 
-from core.common_utils.utils import Common_data,inv_tf
+from core.common_utils.utils import Common_data, inv_tf
 
 Logger = logging.getLogger(__name__)
 
